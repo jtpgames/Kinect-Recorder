@@ -8,11 +8,14 @@ using System.Threading.Tasks;
 using System.Windows.Media.Imaging;
 using Microsoft.Kinect;
 using System.Windows.Media;
+using GalaSoft.MvvmLight.CommandWpf;
 
 namespace KinectRecorder.ViewModel
 {
     public class FilterKinectViewModel : ViewModelBase
     {
+        #region Filter Configurations
+
         private int haloSize;
         public int HaloSize
         {
@@ -40,6 +43,11 @@ namespace KinectRecorder.ViewModel
             {
                 nearThreshold = value;
                 RaisePropertyChanged();
+
+                if (nearThreshold > FarThreshold)
+                {
+                    FarThreshold = nearThreshold;
+                }
             }
         }
 
@@ -58,6 +66,8 @@ namespace KinectRecorder.ViewModel
             }
         }
 
+        #endregion
+
         private ImageSource filteredVideoFrame;
         public ImageSource FilteredVideoFrame
         {
@@ -70,6 +80,30 @@ namespace KinectRecorder.ViewModel
             {
                 filteredVideoFrame = value;
                 RaisePropertyChanged();
+            }
+        }
+
+        private bool isRunning = false;
+        public bool IsRunning
+        {
+            get
+            {
+                return isRunning;
+            }
+
+            set
+            {
+                isRunning = value;
+                RaisePropertyChanged();
+
+                if (isRunning)
+                {
+                    StartProcessing();
+                }
+                else
+                {
+                    StopProcessing();
+                }
             }
         }
 
@@ -90,6 +124,8 @@ namespace KinectRecorder.ViewModel
             }
         }
 
+        public RelayCommand ResetFilterCommand { get; private set; }
+
         private ushort[] depthData = new ushort[KinectManager.DepthSize];
 
         private DepthSpacePoint[] depthSpaceData = new DepthSpacePoint[KinectManager.ColorSize];
@@ -101,8 +137,6 @@ namespace KinectRecorder.ViewModel
 
         private ObjectFilter objectFilter = new ObjectFilter();
 
-        private TaskScheduler _uiThreadScheduler;
-
         public FilterKinectViewModel()
         {
             if (!IsInDesignMode)
@@ -111,9 +145,7 @@ namespace KinectRecorder.ViewModel
                 NearThreshold = 1589;
                 FarThreshold = 1903;
 
-                _uiThreadScheduler = TaskScheduler.FromCurrentSynchronizationContext();
-
-                KinectManager.Instance.ColorAndDepthSourceFrameArrived += ColorAndDepthSourceFrameArrived;
+                ResetFilterCommand = new RelayCommand(objectFilter.Reset);
 
                 sw = Stopwatch.StartNew();
             }
@@ -123,9 +155,19 @@ namespace KinectRecorder.ViewModel
             }
         }
 
-        public override void Cleanup()
+        private void StartProcessing()
+        {
+            KinectManager.Instance.ColorAndDepthSourceFrameArrived += ColorAndDepthSourceFrameArrived;
+        }
+
+        private void StopProcessing()
         {
             KinectManager.Instance.ColorAndDepthSourceFrameArrived -= ColorAndDepthSourceFrameArrived;
+        }
+
+        public override void Cleanup()
+        {
+            StopProcessing();
 
             sw.Stop();
 
