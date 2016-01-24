@@ -16,16 +16,6 @@ namespace KinectRecorder
             public byte Red, Green, Blue, Alpha;
         }
 
-        private T FromByteArray<T>(byte[] array, int startIndex)
-        {
-            int objsize = Marshal.SizeOf(typeof(T));
-            IntPtr buff = Marshal.AllocHGlobal(objsize);
-            Marshal.Copy(array, startIndex, buff, objsize);
-            T retStruct = (T)Marshal.PtrToStructure(buff, typeof(T));
-            Marshal.FreeHGlobal(buff);
-            return retStruct;
-        }
-
         private Rgba ReadUsingPointer(byte[] data, int startIndex)
         {
             unsafe
@@ -56,11 +46,9 @@ namespace KinectRecorder
             return Task.Run(() => Filter(bgra, depth, depthSpaceData, nearThresh, farThresh, haloSize));
         }
 
-        public byte[] Filter(byte[] bgra, ushort[] depth, DepthSpacePoint[] depthSpaceData,
+        public unsafe byte[] Filter(byte[] bgra, ushort[] depth, DepthSpacePoint[] depthSpaceData,
             int nearThresh, int farThresh, int haloSize)
         {
-            var sw = Stopwatch.StartNew();
-
             List<IntPoint> halo = new List<IntPoint>();
 
             int s = haloSize;
@@ -95,50 +83,103 @@ namespace KinectRecorder
                 bLastFrameReset = false;
             }
 
-            for (int colorIndex = 0, depthSpaceIndex = 0; depthSpaceIndex < KinectManager.ColorSize; ++depthSpaceIndex, colorIndex += 4)
+            var sw = Stopwatch.StartNew();
+
+            fixed (byte* bgraPtr = bgra)
             {
-                DepthSpacePoint dsp = depthSpaceData[depthSpaceIndex];
-
-                // show last frame by default
-                AForge.Imaging.RGB src = new AForge.Imaging.RGB(
-                    lastFramePixels[colorIndex],
-                    lastFramePixels[colorIndex + 1],
-                    lastFramePixels[colorIndex + 2],
-                    lastFramePixels[colorIndex + 3]);
-
-                //var src = ReadUsingPointer(lastFramePixels, colorIndex);
-
-                if (dsp.X != float.NegativeInfinity && dsp.Y != -float.NegativeInfinity)
+                var pBGR = (Rgba*)bgraPtr;
+                fixed (byte* resultPtr = result)
                 {
-                    int dx = (int)Math.Round(dsp.X);
-                    int dy = (int)Math.Round(dsp.Y);
+                    var dst = (Rgba*)resultPtr;
 
-                    if (0 <= dx && dx < KinectManager.DepthWidth && 0 <= dy && dy < KinectManager.DepthHeight
-                            && AllDepthsValidWithinHalo(new IntPoint(dx, dy), haloArray, depth,
-                                                        nearThresh, farThresh, actualHaloSize))
+                    fixed (byte* lastFramePtr = lastFramePixels)
                     {
-                        // show video
-                        src = new AForge.Imaging.RGB(
-                            bgra[colorIndex],
-                            bgra[colorIndex + 1],
-                            bgra[colorIndex + 2],
-                            bgra[colorIndex + 3]);
+                        var pLastframe = (Rgba*)lastFramePtr;
 
-                        //src = ReadUsingPointer(bgra, colorIndex);
+                        for (int colorIndex = 0; colorIndex < KinectManager.ColorSize; ++colorIndex)
+                        {
+                            DepthSpacePoint dsp = depthSpaceData[colorIndex];
+
+                            // show last frame by default
+                            var src = pLastframe + colorIndex;
+
+                            if (dsp.X != float.NegativeInfinity && dsp.Y != -float.NegativeInfinity)
+                            {
+                                int dx = (int)Math.Round(dsp.X);
+                                int dy = (int)Math.Round(dsp.Y);
+
+                                if (0 <= dx && dx < KinectManager.DepthWidth && 0 <= dy && dy < KinectManager.DepthHeight
+                                        && AllDepthsValidWithinHalo(dx, dy, haloArray, depth,
+                                                                    nearThresh, farThresh, actualHaloSize))
+                                {
+                                    // show video
+                                    src = pBGR + colorIndex;
+                                }
+                            }
+
+                            dst[colorIndex] = *src;
+                        }
                     }
                 }
-
-                result[colorIndex] = src.Red;
-                result[colorIndex+1] = src.Green;
-                result[colorIndex+2] = src.Blue;
-                result[colorIndex+3] = src.Alpha;
             }
+
+            //for (int colorIndex = 0, depthSpaceIndex = 0; depthSpaceIndex < KinectManager.ColorSize; ++depthSpaceIndex, colorIndex += 4)
+            //{
+            //    DepthSpacePoint dsp = depthSpaceData[depthSpaceIndex];
+
+            //    // show last frame by default
+            //    AForge.Imaging.RGB src = new AForge.Imaging.RGB(
+            //        lastFramePixels[colorIndex],
+            //        lastFramePixels[colorIndex + 1],
+            //        lastFramePixels[colorIndex + 2],
+            //        lastFramePixels[colorIndex + 3]);
+
+            //    if (dsp.X != float.NegativeInfinity && dsp.Y != -float.NegativeInfinity)
+            //    {
+            //        int dx = (int)Math.Round(dsp.X);
+            //        int dy = (int)Math.Round(dsp.Y);
+
+            //        if (0 <= dx && dx < KinectManager.DepthWidth && 0 <= dy && dy < KinectManager.DepthHeight
+            //                && AllDepthsValidWithinHalo(dx, dy, haloArray, depth,
+            //                                            nearThresh, farThresh, actualHaloSize))
+            //        {
+            //            // show video
+            //            src = new AForge.Imaging.RGB(
+            //                bgra[colorIndex],
+            //                bgra[colorIndex + 1],
+            //                bgra[colorIndex + 2],
+            //                bgra[colorIndex + 3]);
+            //        }
+            //    }
+
+            //    result[colorIndex] = src.Red;
+            //    result[colorIndex + 1] = src.Green;
+            //    result[colorIndex + 2] = src.Blue;
+            //    result[colorIndex + 3] = src.Alpha;
+            //}
 
             lastFramePixels = result;
 
             Console.WriteLine($"Filtering took {sw.ElapsedMilliseconds} ms");
 
             return result;
+        }
+
+        private bool AllDepthsValidWithinHalo(int coordx, int coordy, IntPoint[] halo, ushort[] depthData,
+            int nearThresh, int farThresh, int haloSize)
+        {
+            for (int i = 0; i < haloSize; ++i)
+            {
+                int neighborx = coordx + halo[i].X;
+                int neighbory = coordy + halo[i].Y;
+                int depth = depthData[(neighborx + neighbory * KinectManager.DepthWidth)];
+                if (depth < nearThresh || depth > farThresh)
+                {
+                    return false;
+                }
+            }
+
+            return true;
         }
 
         private bool AllDepthsValidWithinHalo(IntPoint coord, IntPoint[] halo, ushort[] depthData,
