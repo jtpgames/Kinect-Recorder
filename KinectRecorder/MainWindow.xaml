@@ -29,7 +29,7 @@
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
             <GroupBox Header="Filtered View">
-                <Image x:Name="FilteredView" />
+                <local:FilterKinectControl x:Name="FilterKinectControl" />
             </GroupBox>
             <GroupBox Header="Log Console" Grid.Row="1">
                 <ListBox x:Name="Log" ItemsSource="{Binding Main.OutputLog}" />
@@ -42,7 +42,8 @@
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
                         <Label Content="Halo" Grid.Column="0"/>
-                        <Slider Grid.Column="1" x:Name="slider_halo" Minimum="2" Maximum="16" ToolTip="Size of halo" MinWidth="200" />
+                        <Slider Grid.Column="1" x:Name="slider_halo" Minimum="2" Maximum="16" ToolTip="Size of halo" MinWidth="200" 
+                                Value="{Binding DataContext.HaloSize, ElementName=FilterKinectControl}" />
                     </Grid>
                     <Grid>
                         <Grid.ColumnDefinitions>
@@ -50,7 +51,8 @@
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
                         <Label Content="Near Threshold" Grid.Column="0"/>
-                        <Slider Grid.Column="1" x:Name="slider_nearThresh" Minimum="2" Maximum="16" ToolTip="Size of halo" MinWidth="200" />
+                        <Slider Grid.Column="1" x:Name="slider_nearThresh" Minimum="2" Maximum="16" ToolTip="Size of halo" MinWidth="200" 
+                                Value="{Binding DataContext.NearThreshold, ElementName=FilterKinectControl}" />
                     </Grid>
                     <Grid>
                         <Grid.ColumnDefinitions>
@@ -58,7 +60,8 @@
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
                         <Label Content="Far Threshold" Grid.Column="0"/>
-                        <Slider Grid.Column="1" x:Name="slider_farThresh" Minimum="2" Maximum="16" ToolTip="Size of halo" MinWidth="200" />
+                        <Slider Grid.Column="1" x:Name="slider_farThresh" Minimum="2" Maximum="16" ToolTip="Size of halo" MinWidth="200" 
+                                Value="{Binding DataContext.FarThreshold, ElementName=FilterKinectControl}" />
                     </Grid>
                 </WrapPanel>
             </GroupBox>

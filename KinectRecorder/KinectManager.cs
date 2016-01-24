@@ -16,6 +16,16 @@ namespace KinectRecorder
 {
     public class KinectManager
     {
+        public static readonly int DepthWidth = 512;
+        public static readonly int DepthHeight = 424;
+        public static readonly int DepthSize = DepthWidth * DepthHeight;
+        public static readonly int IRWidth = 512;
+        public static readonly int IRHeight = 424;
+        public static readonly int IRSize = IRWidth * IRHeight;
+        public static readonly int ColorWidth = 1920;
+        public static readonly int ColorHeight = 1080;
+        public static readonly int ColorSize = ColorWidth * ColorHeight;
+
         private static readonly object syncRoot = new object();
 
         private static KinectManager instance = null;
@@ -40,14 +50,27 @@ namespace KinectRecorder
         }
 
         private KinectSensor _sensor;
-        private MultiSourceFrameReader _reader;
+        private MultiSourceFrameReader _multireader;
+        private MultiSourceFrameReader _colordepthReader;
         private ColorFrameReader _colorReader;
         private AudioBeamFrameReader _audioReader;
 
+        /// <summary>
+        /// Event gets called, when the Color-, Depth-, and IR-Frames arrived.
+        /// </summary>
         public event EventHandler<MultiSourceFrameArrivedEventArgs> MultiSourceFrameArrived;
         private void OnMultiSourceFrameArrived(object sender, MultiSourceFrameArrivedEventArgs e)
         {
             MultiSourceFrameArrived?.Invoke(sender, e);
+        }
+
+        /// <summary>
+        /// Event gets called, when the Color and the Depth Frames have arrived.
+        /// </summary>
+        public event EventHandler<MultiSourceFrameArrivedEventArgs> ColorAndDepthSourceFrameArrived;
+        private void OnColorAndDepthSourceFrameArrived(object sender, MultiSourceFrameArrivedEventArgs e)
+        {
+            ColorAndDepthSourceFrameArrived?.Invoke(sender, e);
         }
 
         public event EventHandler<ColorFrameArrivedEventArgs> ColorSourceFrameArrived;
@@ -61,6 +84,8 @@ namespace KinectRecorder
         {
             AudioSourceFrameArrived?.Invoke(sender, e);
         }
+
+        public CoordinateMapper CoordinateMapper => _sensor.CoordinateMapper;
 
         private KinectManager()
         {
@@ -77,15 +102,20 @@ namespace KinectRecorder
 
                 if (_sensor.IsOpen)
                 {
-                    _reader = _sensor.OpenMultiSourceFrameReader(FrameSourceTypes.Color |
+                    _multireader = _sensor.OpenMultiSourceFrameReader(FrameSourceTypes.Color |
                                                  FrameSourceTypes.Depth |
                                                  FrameSourceTypes.Infrared);
+
+                    _colordepthReader = _sensor.OpenMultiSourceFrameReader(FrameSourceTypes.Color |
+                                                 FrameSourceTypes.Depth);
 
                     _colorReader = _sensor.ColorFrameSource.OpenReader();
 
                     _audioReader = _sensor.AudioSource.OpenReader();
 
-                    _reader.MultiSourceFrameArrived += OnMultiSourceFrameArrived;
+                    _multireader.MultiSourceFrameArrived += OnMultiSourceFrameArrived;
+
+                    _colordepthReader.MultiSourceFrameArrived += OnColorAndDepthSourceFrameArrived;
 
                     _colorReader.FrameArrived += OnColorSourceFrameArrived;
 
@@ -125,6 +155,25 @@ namespace KinectRecorder
                     
                 }
             }
+        }
+
+        public byte[] ToByteBuffer(ColorFrame frame)
+        {
+            int width = frame.FrameDescription.Width;
+            int height = frame.FrameDescription.Height;
+
+            byte[] pixels = new byte[width * height * 4];
+
+            if (frame.RawColorImageFormat == ColorImageFormat.Bgra)
+            {
+                frame.CopyRawFrameDataToArray(pixels);
+            }
+            else
+            {
+                frame.CopyConvertedFrameDataToArray(pixels, ColorImageFormat.Bgra);
+            }
+
+            return pixels;
         }
 
         public Bitmap ImageToBitmap(ColorFrame Image)

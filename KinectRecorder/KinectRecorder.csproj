@@ -92,14 +92,22 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </ApplicationDefinition>
+    <Compile Include="FilterKinectControl.xaml.cs">
+      <DependentUpon>FilterKinectControl.xaml</DependentUpon>
+    </Compile>
     <Compile Include="KinectManager.cs" />
     <Compile Include="RawStreamRecorder.xaml.cs">
       <DependentUpon>RawStreamRecorder.xaml</DependentUpon>
     </Compile>
+    <Compile Include="ViewModel\FilterKinectViewModel.cs" />
     <Compile Include="ViewModel\MainViewModel.cs" />
     <Compile Include="ViewModel\ViewModelLocator.cs" />
     <Compile Include="WaveFile.cs" />
     <Compile Include="WavRecorder.cs" />
+    <Page Include="FilterKinectControl.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
     <Page Include="MainWindow.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
