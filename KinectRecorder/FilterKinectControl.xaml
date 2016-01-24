@@ -9,6 +9,7 @@
              d:DesignHeight="300" d:DesignWidth="300"
              d:DataContext="{d:DesignInstance Type=vm:FilterKinectViewModel, IsDesignTimeCreatable=True}">
     <Grid>
+        <Label Panel.ZIndex="1" Content="{Binding Fps}" FontSize="12pt" Foreground="Red" />
         <Image Name="View" Source="{Binding FilteredVideoFrame}"></Image>
     </Grid>
 </UserControl>

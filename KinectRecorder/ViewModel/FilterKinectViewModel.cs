@@ -7,6 +7,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Media.Imaging;
 using Microsoft.Kinect;
+using System.Windows.Media;
 
 namespace KinectRecorder.ViewModel
 {
@@ -57,8 +58,8 @@ namespace KinectRecorder.ViewModel
             }
         }
 
-        private BitmapSource filteredVideoFrame;
-        public BitmapSource FilteredVideoFrame
+        private ImageSource filteredVideoFrame;
+        public ImageSource FilteredVideoFrame
         {
             get
             {
@@ -93,13 +94,29 @@ namespace KinectRecorder.ViewModel
 
         private DepthSpacePoint[] depthSpaceData = new DepthSpacePoint[KinectManager.ColorSize];
 
+        /// <summary>
+        /// Raw color frame data in bgra format
+        /// </summary>
         private byte[] colorData = new byte[KinectManager.ColorSize * 4]; // ColorSize * sizeof(bgra)
+
+        private ObjectFilter objectFilter = new ObjectFilter();
 
         public FilterKinectViewModel()
         {
-            KinectManager.Instance.ColorAndDepthSourceFrameArrived += ColorAndDepthSourceFrameArrived;
+            if (!IsInDesignMode)
+            {
+                HaloSize = 3;
+                NearThreshold = 1589;
+                FarThreshold = 1903;
 
-            sw = Stopwatch.StartNew();
+                KinectManager.Instance.ColorAndDepthSourceFrameArrived += ColorAndDepthSourceFrameArrived;
+
+                sw = Stopwatch.StartNew();
+            }
+            else
+            {
+                Fps = 42;
+            }
         }
 
         public override void Cleanup()
@@ -146,6 +163,13 @@ namespace KinectRecorder.ViewModel
                     Debug.Assert(frame.FrameDescription.LengthInPixels == KinectManager.ColorSize);
 
                     colorData = KinectManager.Instance.ToByteBuffer(frame);
+
+                    //FilteredVideoFrame = KinectManager.Instance.ToBitmap(frame);
+
+                    //FilteredVideoFrame = await objectFilter.FilterAsync(colorData, depthData, depthSpaceData, NearThreshold, FarThreshold, HaloSize);
+
+                    Task.Run(() => objectFilter.Filter(colorData, depthData, depthSpaceData, NearThreshold, FarThreshold, HaloSize))
+                        .ContinueWith((result) => FilteredVideoFrame = result.Result);
                 }
             }
         }
