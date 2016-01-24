@@ -101,6 +101,8 @@ namespace KinectRecorder.ViewModel
 
         private ObjectFilter objectFilter = new ObjectFilter();
 
+        private TaskScheduler _uiThreadScheduler;
+
         public FilterKinectViewModel()
         {
             if (!IsInDesignMode)
@@ -108,6 +110,8 @@ namespace KinectRecorder.ViewModel
                 HaloSize = 3;
                 NearThreshold = 1589;
                 FarThreshold = 1903;
+
+                _uiThreadScheduler = TaskScheduler.FromCurrentSynchronizationContext();
 
                 KinectManager.Instance.ColorAndDepthSourceFrameArrived += ColorAndDepthSourceFrameArrived;
 
@@ -128,7 +132,7 @@ namespace KinectRecorder.ViewModel
             base.Cleanup();
         }
 
-        private void ColorAndDepthSourceFrameArrived(object sender, MultiSourceFrameArrivedEventArgs e)
+        private async void ColorAndDepthSourceFrameArrived(object sender, MultiSourceFrameArrivedEventArgs e)
         {
             // Get a reference to the multi-frame
             var reference = e.FrameReference.AcquireFrame();
@@ -166,10 +170,8 @@ namespace KinectRecorder.ViewModel
 
                     //FilteredVideoFrame = KinectManager.Instance.ToBitmap(frame);
 
-                    //FilteredVideoFrame = await objectFilter.FilterAsync(colorData, depthData, depthSpaceData, NearThreshold, FarThreshold, HaloSize);
-
-                    Task.Run(() => objectFilter.Filter(colorData, depthData, depthSpaceData, NearThreshold, FarThreshold, HaloSize))
-                        .ContinueWith((result) => FilteredVideoFrame = result.Result);
+                    var bytes = await objectFilter.FilterAsync(colorData, depthData, depthSpaceData, NearThreshold, FarThreshold, HaloSize);
+                    FilteredVideoFrame = bytes.ToBgr32BitMap();
                 }
             }
         }

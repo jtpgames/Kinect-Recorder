@@ -3,18 +3,42 @@ using Microsoft.Kinect;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
-using System.Text;
+using System.Runtime.InteropServices;
 using System.Threading.Tasks;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
 
 namespace KinectRecorder
 {
     class ObjectFilter
     {
+        [StructLayout(LayoutKind.Sequential, Pack = 1)]
+        struct Rgba
+        {
+            public byte Red, Green, Blue, Alpha;
+        }
+
+        private T FromByteArray<T>(byte[] array, int startIndex)
+        {
+            int objsize = Marshal.SizeOf(typeof(T));
+            IntPtr buff = Marshal.AllocHGlobal(objsize);
+            Marshal.Copy(array, startIndex, buff, objsize);
+            T retStruct = (T)Marshal.PtrToStructure(buff, typeof(T));
+            Marshal.FreeHGlobal(buff);
+            return retStruct;
+        }
+
+        private Rgba ReadUsingPointer(byte[] data, int startIndex)
+        {
+            unsafe
+            {
+                fixed (byte* ptr = &data[startIndex])
+                {
+                    return *(Rgba*)ptr;
+                }
+            }
+        }
+
         private bool bLastFrameReset;
-        private BitmapSource lastFrame;
+        private byte[] lastFramePixels;
 
         public ObjectFilter()
         {
@@ -23,34 +47,16 @@ namespace KinectRecorder
 
         public void Reset()
         {
-            byte[] pixels = new byte[KinectManager.ColorWidth * KinectManager.ColorHeight * ((PixelFormats.Bgr32.BitsPerPixel + 7) / 8)];
-
-            var format = PixelFormats.Bgr32;
-
-            int stride = KinectManager.ColorWidth * format.BitsPerPixel / 8;
-
-            lastFrame = BitmapSource.Create(KinectManager.ColorWidth, KinectManager.ColorHeight,
-                96, 96,
-                format, null,
-                pixels, stride);
-
             bLastFrameReset = true;
         }
 
-        public void Reset(BitmapSource frame)
-        {
-            lastFrame = frame.Clone();
-
-            bLastFrameReset = true;
-        }
-
-        public Task<BitmapSource> FilterAsync(byte[] bgra, ushort[] depth, DepthSpacePoint[] depthSpaceData,
+        public Task<byte[]> FilterAsync(byte[] bgra, ushort[] depth, DepthSpacePoint[] depthSpaceData,
             int nearThresh, int farThresh, int haloSize)
         {
             return Task.Run(() => Filter(bgra, depth, depthSpaceData, nearThresh, farThresh, haloSize));
         }
 
-        public BitmapSource Filter(byte[] bgra, ushort[] depth, DepthSpacePoint[] depthSpaceData,
+        public byte[] Filter(byte[] bgra, ushort[] depth, DepthSpacePoint[] depthSpaceData,
             int nearThresh, int farThresh, int haloSize)
         {
             var sw = Stopwatch.StartNew();
@@ -78,17 +84,16 @@ namespace KinectRecorder
                 }
             }
 
+            var haloArray = halo.ToArray();
+
             byte[] result = new byte[KinectManager.ColorSize * 4];
 
             // Initialize last frame with current color frame, if it was reset
             if (bLastFrameReset)
             {
-                lastFrame = CreateImage(bgra);
+                lastFramePixels = bgra;
                 bLastFrameReset = false;
             }
-
-            byte[] lastFramePixels = new byte[KinectManager.ColorSize * 4];
-            lastFrame.CopyPixels(lastFramePixels, KinectManager.ColorWidth * 4, 0);
 
             for (int colorIndex = 0, depthSpaceIndex = 0; depthSpaceIndex < KinectManager.ColorSize; ++depthSpaceIndex, colorIndex += 4)
             {
@@ -101,13 +106,15 @@ namespace KinectRecorder
                     lastFramePixels[colorIndex + 2],
                     lastFramePixels[colorIndex + 3]);
 
+                //var src = ReadUsingPointer(lastFramePixels, colorIndex);
+
                 if (dsp.X != float.NegativeInfinity && dsp.Y != -float.NegativeInfinity)
                 {
                     int dx = (int)Math.Round(dsp.X);
                     int dy = (int)Math.Round(dsp.Y);
 
                     if (0 <= dx && dx < KinectManager.DepthWidth && 0 <= dy && dy < KinectManager.DepthHeight
-                            && AllDepthsValidWithinHalo(new IntPoint(dx, dy), halo.ToArray(), depth,
+                            && AllDepthsValidWithinHalo(new IntPoint(dx, dy), haloArray, depth,
                                                         nearThresh, farThresh, actualHaloSize))
                     {
                         // show video
@@ -116,6 +123,8 @@ namespace KinectRecorder
                             bgra[colorIndex + 1],
                             bgra[colorIndex + 2],
                             bgra[colorIndex + 3]);
+
+                        //src = ReadUsingPointer(bgra, colorIndex);
                     }
                 }
 
@@ -125,27 +134,11 @@ namespace KinectRecorder
                 result[colorIndex+3] = src.Alpha;
             }
 
-            var resultImage = CreateImage(result);
-
-            lastFrame = resultImage;
+            lastFramePixels = result;
 
             Console.WriteLine($"Filtering took {sw.ElapsedMilliseconds} ms");
 
-            return resultImage;
-        }
-
-        private BitmapSource CreateImage(byte[] pixels)
-        {
-            var format = PixelFormats.Bgr32;
-
-            int stride = KinectManager.ColorWidth * format.BitsPerPixel / 8;
-
-            var image = BitmapSource.Create(KinectManager.ColorWidth, KinectManager.ColorHeight,
-                96, 96,
-                format, null,
-                pixels, stride);
-
-            return image;
+            return result;
         }
 
         private bool AllDepthsValidWithinHalo(IntPoint coord, IntPoint[] halo, ushort[] depthData,
