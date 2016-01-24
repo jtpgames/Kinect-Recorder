@@ -12,6 +12,32 @@ using GalaSoft.MvvmLight.CommandWpf;
 
 namespace KinectRecorder.ViewModel
 {
+    /// <summary>
+    /// http://www.mikeadev.net/2013/06/generic-method/
+    /// </summary>
+    public static class MathHelper
+    {
+        /// <summary>
+        /// Clamps value within desired range
+        /// This is a generic. So use any type you want
+        /// </summary>
+        /// <param name="value">Value to be clamped</param>
+        /// <param name="min">Min range</param>
+        /// <param name="max">Max range</param>
+        /// <returns>Clamped value within range</returns>
+        public static T Clamp<T>(T value, T min, T max)
+            where T : IComparable<T>
+        {
+            T result = value;
+            if (result.CompareTo(max) > 0)
+                result = max;
+            if (result.CompareTo(min) < 0)
+                result = min;
+
+            return result;
+        }
+    }
+
     public class FilterKinectViewModel : ViewModelBase
     {
         #region Filter Configurations
@@ -28,8 +54,15 @@ namespace KinectRecorder.ViewModel
             {
                 haloSize = value;
                 RaisePropertyChanged();
+                RaisePropertyChanged("HaloText");
             }
         }
+
+        public string HaloText => $"Size of Halo: {HaloSize}";
+
+        public ushort ThresholdMin => 500;
+
+        public ushort ThresholdMax => 6500;
 
         private int nearThreshold;
         public int NearThreshold
@@ -43,13 +76,16 @@ namespace KinectRecorder.ViewModel
             {
                 nearThreshold = value;
                 RaisePropertyChanged();
+                RaisePropertyChanged("NearThresholdText");
 
                 if (nearThreshold > FarThreshold)
                 {
-                    FarThreshold = nearThreshold;
+                    FarThreshold = NearThreshold;
                 }
             }
         }
+
+        public string NearThresholdText => $"Near Threshold in mm: {NearThreshold}";
 
         private int farThreshold;
         public int FarThreshold
@@ -62,6 +98,39 @@ namespace KinectRecorder.ViewModel
             set
             {
                 farThreshold = value;
+                RaisePropertyChanged();
+                RaisePropertyChanged("FarThresholdText");
+            }
+        }
+
+        public string FarThresholdText => $"Far Threshold in mm: {FarThreshold}";
+
+        private bool bFilterEnabled = false;
+        public bool FilterEnabled
+        {
+            get
+            {
+                return bFilterEnabled;
+            }
+
+            set
+            {
+                bFilterEnabled = value;
+                RaisePropertyChanged();
+            }
+        }
+
+        private bool bAutomaticThresholds = true;
+        public bool AutomaticThresholds
+        {
+            get
+            {
+                return bAutomaticThresholds;
+            }
+
+            set
+            {
+                bAutomaticThresholds = value;
                 RaisePropertyChanged();
             }
         }
@@ -181,11 +250,13 @@ namespace KinectRecorder.ViewModel
 
             ++totalFrames;
 
+            var bOneSecondElapsed = false;
             if (sw.ElapsedMilliseconds >= 1000)
             {
                 Fps = totalFrames;
                 totalFrames = 0;
                 sw.Restart();
+                bOneSecondElapsed = true;
             }
 
             // Open depth frame
@@ -198,6 +269,31 @@ namespace KinectRecorder.ViewModel
                     frame.CopyFrameDataToArray(depthData);
 
                     KinectManager.Instance.CoordinateMapper.MapColorFrameToDepthSpace(depthData, depthSpaceData);
+
+                    if (bOneSecondElapsed && AutomaticThresholds)
+                    {
+                        var maxDepth = depthData.Max();
+
+                        var bins = new Dictionary<ushort, int>();
+                        foreach (var depth in depthData)
+                        {
+                            if (bins.ContainsKey(depth))
+                            {
+                                ++bins[depth];
+                            }
+                            else
+                            {
+                                bins.Add(depth, 1);
+                            }
+                        }
+
+                        //var maxDepth2 = bins.Max().Value;
+
+                        maxDepth = MathHelper.Clamp(maxDepth, ThresholdMin, ThresholdMax);
+
+                        FarThreshold = maxDepth;
+                        NearThreshold = maxDepth - 500;
+                    }
                 }
             }
 
@@ -210,10 +306,15 @@ namespace KinectRecorder.ViewModel
 
                     colorData = KinectManager.Instance.ToByteBuffer(frame);
 
-                    //FilteredVideoFrame = KinectManager.Instance.ToBitmap(frame);
-
-                    var bytes = await objectFilter.FilterAsync(colorData, depthData, depthSpaceData, NearThreshold, FarThreshold, HaloSize);
-                    FilteredVideoFrame = bytes.ToBgr32BitMap();
+                    if (FilterEnabled)
+                    {
+                        var bytes = await objectFilter.FilterAsync(colorData, depthData, depthSpaceData, NearThreshold, FarThreshold, HaloSize);
+                        FilteredVideoFrame = bytes.ToBgr32BitMap();
+                    }
+                    else
+                    {
+                        FilteredVideoFrame = KinectManager.Instance.ToBitmap(frame);
+                    }
                 }
             }
         }

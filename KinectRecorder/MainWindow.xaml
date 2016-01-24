@@ -1,85 +1,110 @@
-﻿<Window x:Name="window" x:Class="KinectRecorder.MainWindow"
+﻿<Window x:Name="window"
+        x:Class="KinectRecorder.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:KinectRecorder"
         mc:Ignorable="d"
-        Title="MainWindow" Height="576" Width="1024">
+        Title="MainWindow"
+        Height="576"
+        Width="1024">
     <DockPanel DataContext="{Binding Source={StaticResource Locator}}">
         <Menu DockPanel.Dock="Top">
             <MenuItem Header="_File">
-                <MenuItem Header="_Start Kinect" IsCheckable="True" IsChecked="{Binding DataContext.IsRunning, ElementName=FilterKinectControl}"  />
-                <MenuItem Header="_Open" IsEnabled="False"/>
+                <MenuItem Header="_Start Kinect"
+                          IsCheckable="True"
+                          IsChecked="{Binding DataContext.IsRunning, ElementName=FilterKinectControl}" />
+                <MenuItem Header="_Open"
+                          IsEnabled="False" />
                 <Separator />
-                <MenuItem Header="_Exit" 
-                          Command="{Binding Main.ExitCommand, Mode=OneWay}" 
-                          CommandParameter="{Binding ElementName=window, Mode=OneWay}"  />
+                <MenuItem Header="_Exit"
+                          Command="{Binding Main.ExitCommand, Mode=OneWay}"
+                          CommandParameter="{Binding ElementName=window, Mode=OneWay}" />
             </MenuItem>
             <MenuItem Header="_Record">
-                <MenuItem Header="_Start" IsEnabled="False"/>
-                <MenuItem Header="_Stop" IsEnabled="False" />
+                <MenuItem Header="_Start"
+                          IsEnabled="False" />
+                <MenuItem Header="_Stop"
+                          IsEnabled="False" />
             </MenuItem>
         </Menu>
         <Grid>
             <Grid.RowDefinitions>
-                <RowDefinition Height="*"/>
-                <RowDefinition Height="*"/>
+                <RowDefinition Height="*" />
+                <RowDefinition Height="*" />
             </Grid.RowDefinitions>
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="2*"/>
-                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="2*" />
+                <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
             <GroupBox Header="Filtered View">
                 <local:FilterKinectControl x:Name="FilterKinectControl" />
             </GroupBox>
-            <GroupBox Header="Log Console" Grid.Row="1">
-                <ListBox x:Name="Log" ItemsSource="{Binding Main.OutputLog}" />
+            <GroupBox Header="Log Console"
+                      Grid.Row="1">
+                <ListBox x:Name="Log"
+                         ItemsSource="{Binding Main.OutputLog}" />
             </GroupBox>
-            <GroupBox Header="Parameters" Grid.Column="1">
-                <WrapPanel Orientation="Vertical">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
-                        <Label Content="Halo" Grid.Column="0"/>
-                        <Slider Grid.Column="1" x:Name="slider_halo" Minimum="2" Maximum="16" ToolTip="Size of halo" MinWidth="200" 
-                                Value="{Binding DataContext.HaloSize, ElementName=FilterKinectControl}" 
-                                TickPlacement="BottomRight" AutoToolTipPlacement="TopLeft" />
-                    </Grid>
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
-                        <Label Content="Near Threshold" Grid.Column="0"/>
-                        <Slider Grid.Column="1" x:Name="slider_nearThresh" Minimum="500" Maximum="6500" ToolTip="Near Threshold" MinWidth="200" 
-                                Value="{Binding DataContext.NearThreshold, ElementName=FilterKinectControl}" 
-                                SmallChange="10" LargeChange="100" 
-                                TickFrequency="500" 
-                                TickPlacement="BottomRight" AutoToolTipPlacement="TopLeft" />
-                    </Grid>
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
-                        <Label Content="Far Threshold" Grid.Column="0"/>
-                        <Slider Grid.Column="1" x:Name="slider_farThresh" Minimum="500" Maximum="6500" ToolTip="Far Threshold" MinWidth="200" 
-                                Value="{Binding DataContext.FarThreshold, ElementName=FilterKinectControl}" 
-                                SmallChange="10" LargeChange="100" 
-                                TickFrequency="500"
-                                TickPlacement="BottomRight" AutoToolTipPlacement="TopLeft"  />
-                    </Grid>
-                </WrapPanel>
+            <GroupBox Header="Parameters"
+                      Grid.Column="1">
+                
+                <StackPanel Orientation="Vertical">
+
+                    <Label Content="{Binding DataContext.HaloText, ElementName=FilterKinectControl}" />
+                    <Slider Minimum="2"
+                            Maximum="16"
+                            ToolTip="Size of halo"
+                            Value="{Binding DataContext.HaloSize, ElementName=FilterKinectControl}"
+                            TickPlacement="BottomRight"
+                            AutoToolTipPlacement="TopLeft" />
+
+                    <Label Content="{Binding DataContext.NearThresholdText, ElementName=FilterKinectControl}" />
+                    <Slider Minimum="{Binding DataContext.ThresholdMin, ElementName=FilterKinectControl}"
+                            Maximum="{Binding DataContext.ThresholdMax, ElementName=FilterKinectControl}"
+                            Value="{Binding DataContext.NearThreshold, ElementName=FilterKinectControl}"
+                            ToolTip="Near Threshold"
+                            SmallChange="10"
+                            LargeChange="100"
+                            TickFrequency="500"
+                            TickPlacement="BottomRight"
+                            AutoToolTipPlacement="TopLeft" />
+
+                    <Label Content="{Binding DataContext.FarThresholdText, ElementName=FilterKinectControl}" />
+                    <Slider Minimum="{Binding DataContext.ThresholdMin, ElementName=FilterKinectControl}"
+                            Maximum="{Binding DataContext.ThresholdMax, ElementName=FilterKinectControl}"
+                            Value="{Binding DataContext.FarThreshold, ElementName=FilterKinectControl}"
+                            ToolTip="Far Threshold"
+                            SmallChange="10"
+                            LargeChange="100"
+                            TickFrequency="500"
+                            TickPlacement="BottomRight"
+                            AutoToolTipPlacement="TopLeft" />
+                    
+                    <CheckBox IsChecked="{Binding DataContext.FilterEnabled, ElementName=FilterKinectControl}"
+                              Content="Filter enabled"
+                              IsEnabled="{Binding DataContext.IsRunning, ElementName=FilterKinectControl}" />
+
+                    <CheckBox IsChecked="{Binding DataContext.AutomaticThresholds, ElementName=FilterKinectControl}"
+                              Content="Automatic threshold"
+                              IsEnabled="{Binding DataContext.IsRunning, ElementName=FilterKinectControl}" />
+
+                </StackPanel>
             </GroupBox>
-            <GroupBox Header="Advanced" Grid.Column="1" Grid.Row="1">
-                <WrapPanel Orientation="Vertical">
-                    <Button x:Name="btn_OpenRawStreamRec" Content="Open Raw Stream Recorder" Click="btn_OpenRawStreamRec_Click" Margin="4pt" Height="42pt" FontSize="16pt"/>
-                    <Button Content="Reset Filter" Margin="4pt" Height="42pt" FontSize="16pt" 
-                            Command = "{Binding DataContext.ResetFilterCommand, ElementName = FilterKinectControl}" />
-                </WrapPanel>
+            <GroupBox Header="Advanced"
+                      Grid.Column="1"
+                      Grid.Row="1">
+                <StackPanel Orientation="Vertical">
+                    <Button x:Name="btn_OpenRawStreamRec"
+                            Content="Open Raw Stream Recorder"
+                            Click="btn_OpenRawStreamRec_Click"
+                            Margin="4pt"
+                            FontSize="12pt" />
+                    <Button Content="Reset Filter"
+                            Margin="4pt"
+                            FontSize="12pt"
+                            Command="{Binding DataContext.ResetFilterCommand, ElementName = FilterKinectControl}" />
+                </StackPanel>
             </GroupBox>
         </Grid>
     </DockPanel>
