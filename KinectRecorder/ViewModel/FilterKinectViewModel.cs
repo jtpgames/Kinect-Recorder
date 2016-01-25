@@ -272,11 +272,20 @@ namespace KinectRecorder.ViewModel
 
                     if (bOneSecondElapsed && AutomaticThresholds)
                     {
+                        /* 
+                        * 1. method: Just take the maximum depth
+                         * Works only if the area in front of the camera is flat
+                         */
                         var maxDepth = depthData.Max();
 
+                        /* 
+                         * 2. method: Take the depth value which occurs most often
+                         */
                         var bins = new Dictionary<ushort, int>();
                         foreach (var depth in depthData)
                         {
+                            if (depth == 0) continue;
+
                             if (bins.ContainsKey(depth))
                             {
                                 ++bins[depth];
@@ -287,12 +296,41 @@ namespace KinectRecorder.ViewModel
                             }
                         }
 
-                        //var maxDepth2 = bins.Max().Value;
+                        ushort binWithHighestValue = 0;
+                        int HighestValue = 0;
+                        foreach (var bin in bins)
+                        {
+                            if (bin.Value > HighestValue)
+                            {
+                                binWithHighestValue = bin.Key;
+                                HighestValue = bin.Value;
+                            }
+                        }
 
+                        maxDepth = binWithHighestValue;
+
+                        /*
+                         * 3. method: Take the depth in the middle of the frame and apply a 3x3 mean filter.
+                         */
+
+                        var meanConvolutionKernel = new float[3, 3] 
+                        {
+                            {1, 1, 1 }, {1, 1, 1 }, { 1, 1, 1 }
+                        };
+
+                        meanConvolutionKernel.Multiply(1f/9f);
+
+                        var depthMatrix = depthData.Select((s) => (float)s).ToArray().ToMatrix(KinectManager.DepthWidth, KinectManager.DepthHeight);
+
+                        var middleMean = depthMatrix.ConvolutePixel(KinectManager.DepthWidth / 2, KinectManager.DepthHeight / 2, meanConvolutionKernel);
+
+                        maxDepth = (ushort)middleMean;
+
+                        // Clamp the value so it is within the allowed threshold
                         maxDepth = MathHelper.Clamp(maxDepth, ThresholdMin, ThresholdMax);
 
                         FarThreshold = maxDepth;
-                        NearThreshold = maxDepth - 500;
+                        NearThreshold = maxDepth - 500; // Nearthreshold is 50 cm towards the camera.
                     }
                 }
             }
