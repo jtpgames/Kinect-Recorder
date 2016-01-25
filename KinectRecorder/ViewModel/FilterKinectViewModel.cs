@@ -117,6 +117,11 @@ namespace KinectRecorder.ViewModel
             {
                 bFilterEnabled = value;
                 RaisePropertyChanged();
+
+                if (VisualizeThresholds)
+                {
+                    VisualizeThresholds = false;
+                }
             }
         }
 
@@ -132,6 +137,26 @@ namespace KinectRecorder.ViewModel
             {
                 bAutomaticThresholds = value;
                 RaisePropertyChanged();
+            }
+        }
+
+        private bool bVisualizeThresholds = false;
+        public bool VisualizeThresholds
+        {
+            get
+            {
+                return bVisualizeThresholds;
+            }
+
+            set
+            {
+                bVisualizeThresholds = value;
+                RaisePropertyChanged();
+
+                if (FilterEnabled)
+                {
+                    FilterEnabled = false;
+                }
             }
         }
 
@@ -349,12 +374,67 @@ namespace KinectRecorder.ViewModel
                         var bytes = await objectFilter.FilterAsync(colorData, depthData, depthSpaceData, NearThreshold, FarThreshold, HaloSize);
                         FilteredVideoFrame = bytes.ToBgr32BitMap();
                     }
+                    else if (VisualizeThresholds)
+                    {
+                        var bytes = await Task.Run(() => Threshold(colorData));
+                        FilteredVideoFrame = bytes.ToBgr32BitMap();
+                    }
                     else
                     {
                         FilteredVideoFrame = KinectManager.Instance.ToBitmap(frame);
                     }
                 }
             }
+        }
+
+        private unsafe byte[] Threshold(byte[] frame)
+        {
+            byte[] result = new byte[KinectManager.ColorSize * 4];
+
+            var sw = Stopwatch.StartNew();
+
+            fixed (byte* bgraPtr = frame)
+            {
+                var pBGR = (Bgra*)bgraPtr;
+                fixed (byte* resultPtr = result)
+                {
+                    var dst = (Bgra*)resultPtr;
+                    var defaultColor = new Bgra() { Blue = 44, Green = 250, Red = 88, Alpha = 255 };
+                    var tooNearColor = new Bgra() { Blue = 88, Green = 44, Red = 250, Alpha = 255 };
+                    var tooFarColor = new Bgra() { Blue = 250, Green = 44, Red = 88, Alpha = 255 };
+
+                    for (int colorIndex = 0; colorIndex < KinectManager.ColorSize; ++colorIndex)
+                    {
+                        DepthSpacePoint dsp = depthSpaceData[colorIndex];
+
+                        var src = &defaultColor;
+
+                        if (dsp.X != float.NegativeInfinity && dsp.Y != -float.NegativeInfinity)
+                        {
+                            int dx = (int)Math.Round(dsp.X);
+                            int dy = (int)Math.Round(dsp.Y);
+
+                            if (0 <= dx && dx < KinectManager.DepthWidth && 0 <= dy && dy < KinectManager.DepthHeight)
+                            {
+                                int depth = depthData[dx + dy * KinectManager.DepthWidth];
+
+                                if (depth < NearThreshold)
+                                    src = &tooNearColor;
+                                else if (depth > FarThreshold)
+                                    src = &tooFarColor;
+                                else
+                                    src = pBGR + colorIndex;
+                            }
+                        }
+
+                        dst[colorIndex] = *src;
+                    }
+                }
+            }
+
+            Console.WriteLine($"Thresholding took {sw.ElapsedMilliseconds} ms");
+
+            return result;
         }
     }
 }

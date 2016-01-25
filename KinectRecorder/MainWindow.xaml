@@ -89,6 +89,10 @@
                               Content="Automatic threshold"
                               IsEnabled="{Binding DataContext.IsRunning, ElementName=FilterKinectControl}" />
 
+                    <CheckBox IsChecked="{Binding DataContext.VisualizeThresholds, ElementName=FilterKinectControl}"
+                              Content="Visualize thresholds"
+                              IsEnabled="{Binding DataContext.IsRunning, ElementName=FilterKinectControl}" />
+                    
                 </StackPanel>
             </GroupBox>
             <GroupBox Header="Advanced"

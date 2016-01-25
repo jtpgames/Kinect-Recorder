@@ -14,6 +14,12 @@ using System.Windows.Media.Imaging;
 
 namespace KinectRecorder
 {
+    [StructLayout(LayoutKind.Sequential, Pack = 1)]
+    public struct Bgra
+    {
+        public byte Blue, Green, Red, Alpha;
+    }
+
     public class KinectManager
     {
         public static readonly int DepthWidth = 512;

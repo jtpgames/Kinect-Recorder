@@ -10,23 +10,6 @@ namespace KinectRecorder
 {
     class ObjectFilter
     {
-        [StructLayout(LayoutKind.Sequential, Pack = 1)]
-        struct Rgba
-        {
-            public byte Red, Green, Blue, Alpha;
-        }
-
-        private Rgba ReadUsingPointer(byte[] data, int startIndex)
-        {
-            unsafe
-            {
-                fixed (byte* ptr = &data[startIndex])
-                {
-                    return *(Rgba*)ptr;
-                }
-            }
-        }
-
         private bool bLastFrameReset;
         private byte[] lastFramePixels;
 
@@ -87,14 +70,14 @@ namespace KinectRecorder
 
             fixed (byte* bgraPtr = bgra)
             {
-                var pBGR = (Rgba*)bgraPtr;
+                var pBGR = (Bgra*)bgraPtr;
                 fixed (byte* resultPtr = result)
                 {
-                    var dst = (Rgba*)resultPtr;
+                    var dst = (Bgra*)resultPtr;
 
                     fixed (byte* lastFramePtr = lastFramePixels)
                     {
-                        var pLastframe = (Rgba*)lastFramePtr;
+                        var pLastframe = (Bgra*)lastFramePtr;
 
                         for (int colorIndex = 0; colorIndex < KinectManager.ColorSize; ++colorIndex)
                         {
