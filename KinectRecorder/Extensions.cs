@@ -28,6 +28,22 @@ namespace KinectRecorder
 
     static class MathExtensions
     {
+        public static int RoundUp(this int numToRound, int multiple)
+        {
+            if (multiple == 0)
+            {
+                return numToRound;
+            }
+
+            int remainder = numToRound % multiple;
+            if (remainder == 0)
+            {
+                return numToRound;
+            }
+
+            return numToRound + multiple - remainder;
+        }
+
         /// <summary>
         /// Clamps value within desired range
         /// This is a generic. So use any type you want

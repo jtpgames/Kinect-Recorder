@@ -1,0 +1,117 @@
+struct DepthSpacePoint 
+{ 
+	float X;
+	float Y;
+};
+
+cbuffer FilterParams : register (b0)
+{       
+	int nearThresh;
+	int farThresh;
+	int haloSize;
+};
+
+RWStructuredBuffer<int4> bgra						: register (u0);
+RWStructuredBuffer<uint> depth						: register (u1);
+RWStructuredBuffer<DepthSpacePoint> depthSpaceData	: register (u2);
+RWStructuredBuffer<int4> lastFrame					: register (u3);
+RWStructuredBuffer<int4> result						: register (u4);
+
+static int2 halo[1024];
+
+int ColorWidth = 1920;
+int ColorSize = 1920 * 1080;
+int DepthWidth = 512;
+int DepthHeight = 424;
+
+int4 readPixel(RWStructuredBuffer<int4> buffer, int x, int y)
+{
+	int4 output;
+	uint index = (x + y * ColorWidth);
+
+	output = buffer[index];
+
+	return output;
+}
+
+uint readPixel(RWStructuredBuffer<uint> buffer, int x, int y)
+{
+	uint output;
+	uint index = (x + y * ColorWidth);
+
+	output = buffer[index];
+
+	return output;
+}
+
+DepthSpacePoint readPixel(RWStructuredBuffer<DepthSpacePoint> buffer, int x, int y)
+{
+	DepthSpacePoint output;
+	uint index = (x + y * ColorWidth);
+
+	output = buffer[index];
+
+	return output;
+}
+
+bool allDepthsValidWithinHalo(const int coordx, const int coordy)
+{
+	[allow_uav_condition]
+	for (int i = 0; i < haloSize; ++i)
+	{
+		const int neighborx = coordx + halo[i].x;
+		const int neighbory = coordy + halo[i].y;
+		int depthValue = depth[(neighborx + neighbory * DepthWidth)];
+		if (depthValue < nearThresh || depthValue > farThresh)
+		{
+			return false;
+		}
+	}
+
+	return true;
+}
+
+[numthreads(8, 8, 1)]
+void Filter(uint3 threadID : SV_DispatchThreadID)
+{	
+	int s = haloSize;
+	int xd = s;
+	int yd = s / 2;
+	int S = (xd + yd) / 2;
+	int x0 = -xd;
+	int x1 = +xd;
+	int y0 = -yd;
+	int y1 = +yd;
+	int actualHaloSize = 0;
+	for (int y = y0; y < y1; ++y)
+	{
+		for (int x = x0; x < x1; ++x)
+		{
+			if (abs(x) + abs(y) <= S)
+			{
+				halo[actualHaloSize] = int2(x, y);
+				++actualHaloSize;
+			}
+		}
+	}
+
+	int colorIndex = threadID.x + threadID.y * ColorWidth;
+
+	const DepthSpacePoint dsp = depthSpaceData[colorIndex];
+	// show last frame by default
+	int4 src = lastFrame[colorIndex];
+
+	const int dx = round(dsp.X);
+	const int dy = round(dsp.Y);
+
+	if (0 <= dx && dx < DepthWidth && 0 <= dy && dy < DepthHeight
+			&& allDepthsValidWithinHalo(dx, dy))
+	{
+		// show video
+		src = bgra[colorIndex];
+	}
+
+	result[colorIndex] = src;
+
+	//result[threadID.x + threadID.y * 1080] = readPixel(bgra, threadID.x, threadID.y);
+}

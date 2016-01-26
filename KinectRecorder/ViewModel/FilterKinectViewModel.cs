@@ -220,6 +220,10 @@ namespace KinectRecorder.ViewModel
 
         public RelayCommand ResetFilterCommand { get; private set; }
 
+        public RelayCommand TestGPUFilterCommand { get; private set; }
+
+        private bool bTestGPU = false;
+
         private ushort[] depthData = new ushort[KinectManager.DepthSize];
 
         private DepthSpacePoint[] depthSpaceData = new DepthSpacePoint[KinectManager.ColorSize];
@@ -240,6 +244,9 @@ namespace KinectRecorder.ViewModel
                 FarThreshold = 1903;
 
                 ResetFilterCommand = new RelayCommand(objectFilter.Reset);
+
+                //TestGPUFilterCommand = new RelayCommand(objectFilter.testgpu);
+                TestGPUFilterCommand = new RelayCommand(() => bTestGPU = true);
 
                 sw = Stopwatch.StartNew();
             }
@@ -368,6 +375,15 @@ namespace KinectRecorder.ViewModel
                     Debug.Assert(frame.FrameDescription.LengthInPixels == KinectManager.ColorSize);
 
                     colorData = KinectManager.Instance.ToByteBuffer(frame);
+
+                    if (bTestGPU)
+                    {
+                        var bytes = objectFilter.FilterGPU(colorData, depthData, depthSpaceData, NearThreshold, FarThreshold, HaloSize);
+                        FilteredVideoFrame = bytes.ToBgr32BitMap();
+                        bTestGPU = false;
+                        KinectManager.Instance.PauseKinect();
+                        return;
+                    }
 
                     if (FilterEnabled)
                     {

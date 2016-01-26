@@ -1,26 +1,298 @@
 ﻿using AForge;
+using KinectRecorder.GPGPU;
 using Microsoft.Kinect;
+using SlimDX;
+using SlimDX.D3DCompiler;
+using SlimDX.Direct3D11;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
+
+using Buffer = SlimDX.Direct3D11.Buffer;
 
 namespace KinectRecorder
 {
     class ObjectFilter
     {
+        struct int4
+        {
+            public int x, y, z, a;
+
+            public int4(int x, int y, int z, int a)
+            {
+                this.x = x;
+                this.y = y;
+                this.z = z;
+                this.a = a;
+            }
+        }
+
+        static class GPGPUHelper
+        {
+            public static ComputeShader LoadComputeShader(Device device, string filename, string entrypoint)
+            {
+                // Compile compute shader
+                ShaderBytecode shaderBytecode = null;
+                try
+                {
+                    shaderBytecode = ShaderBytecode.CompileFromFile(filename, entrypoint, "cs_5_0", ShaderFlags.None, EffectFlags.None);
+                }
+                catch (Exception ex)
+                {
+                    LogConsole.WriteLine(ex.Message);
+                }
+
+                System.Diagnostics.Debug.Assert(shaderBytecode != null);
+
+                return new ComputeShader(device, shaderBytecode);
+            }
+
+            public static Buffer CreateConstantBuffer<T>(Device device, T[] data)
+                where T : struct
+            {
+                var elementCount = data.Length;
+                var bufferSizeInBytes = Marshal.SizeOf(typeof(T)) * elementCount;
+
+                bufferSizeInBytes = bufferSizeInBytes.RoundUp(16);
+
+                BufferDescription inputBufferDescription = new BufferDescription
+                {
+                    BindFlags = BindFlags.ConstantBuffer,
+                    CpuAccessFlags = CpuAccessFlags.Write,
+                    OptionFlags = ResourceOptionFlags.None,
+                    SizeInBytes = bufferSizeInBytes,
+                    StructureByteStride = 0,
+                    Usage = ResourceUsage.Dynamic,
+                };
+
+                Buffer inputBuffer = null;
+                try
+                {
+                    inputBuffer = new Buffer(device, inputBufferDescription);
+                    DataBox input = device.ImmediateContext.MapSubresource(inputBuffer, MapMode.WriteDiscard, MapFlags.None);
+                    input.Data.WriteRange(data);
+                    device.ImmediateContext.UnmapSubresource(inputBuffer, 0);
+                }
+                catch (Exception e)
+                {
+                    LogConsole.WriteLine(e.Message);
+                }
+
+                System.Diagnostics.Debug.Assert(inputBuffer != null);
+
+                return inputBuffer;
+            }
+
+            public static UnorderedAccessView CreateUnorderedAccessView(Device device, int width, int height, SlimDX.DXGI.Format format, out Texture2D texture)
+            {
+                var desc = new UnorderedAccessViewDescription()
+                {
+                    Dimension = UnorderedAccessViewDimension.Texture2D,
+                    ArraySize = 1,
+                    ElementCount = width * height,
+                    Format = format
+                };
+
+                texture = new Texture2D(device, new Texture2DDescription()
+                {
+                    ArraySize = 1,
+                    MipLevels = 1,
+                    OptionFlags = ResourceOptionFlags.None,
+                    SampleDescription = new SlimDX.DXGI.SampleDescription(1, 0),
+                    Usage = ResourceUsage.Default,
+                    CpuAccessFlags = CpuAccessFlags.None,
+                    BindFlags = BindFlags.ShaderResource | BindFlags.UnorderedAccess,
+                    Width = width,
+                    Height = height,
+                    Format = format
+                });
+
+                return new UnorderedAccessView(device, texture);
+            }
+
+            public static UnorderedAccessView CreateUnorderedAccessView<T>(Device device, T[] data, int width, int height, SlimDX.DXGI.Format format, out Texture2D texture)
+                where T : struct
+            {
+                throw new NotImplementedException();
+
+                texture = new Texture2D(device, new Texture2DDescription()
+                {
+                    ArraySize = 1,
+                    MipLevels = 1,
+                    OptionFlags = ResourceOptionFlags.None,
+                    SampleDescription = new SlimDX.DXGI.SampleDescription(1, 0),
+                    Usage = ResourceUsage.Dynamic,
+                    CpuAccessFlags = CpuAccessFlags.Write,
+                    BindFlags = BindFlags.ShaderResource | BindFlags.UnorderedAccess,
+                    Width = width,
+                    Height = height,
+                    Format = format
+                });
+
+                var context = device.ImmediateContext;
+                DataBox box = context.MapSubresource(texture, 0, 0, MapMode.WriteDiscard, MapFlags.None);
+                box.Data.WriteRange(data);
+                context.UnmapSubresource(texture, 0);
+
+                return new UnorderedAccessView(device, texture);
+            }
+        }
+
         private bool bLastFrameReset;
         private byte[] lastFramePixels;
 
+        private Device device;
+        private ComputeShader computeShader;
+
         public ObjectFilter()
         {
+            // Make device
+            device = new Device(DriverType.Hardware, DeviceCreationFlags.Debug, FeatureLevel.Level_11_0);
+
+            // Compile compute shader  
+            computeShader = GPGPUHelper.LoadComputeShader(device, "GPGPU/FilterObjects.compute", "Filter");
+
             Reset();
         }
 
         public void Reset()
         {
             bLastFrameReset = true;
+        }
+
+        public void testgpu()
+        {
+            // Make device
+            Device device = new Device(DriverType.Hardware, DeviceCreationFlags.None, FeatureLevel.Level_11_0);
+
+            ComputeShader compute = GPGPUHelper.LoadComputeShader(device, "GPGPU/Simple.compute", "main");
+
+            Texture2D uavTexture;
+            UnorderedAccessView computeResult = GPGPUHelper.CreateUnorderedAccessView(device, 1024, 1024, SlimDX.DXGI.Format.R8G8B8A8_UNorm, out uavTexture);
+
+            device.ImmediateContext.ComputeShader.Set(compute);
+            device.ImmediateContext.ComputeShader.SetUnorderedAccessView(computeResult, 0);
+            device.ImmediateContext.Dispatch(32, 32, 1);
+
+            Texture2D.ToFile(device.ImmediateContext, uavTexture, ImageFileFormat.Png, "uav.png");
+        }
+
+        public byte[] FilterGPU2(byte[] bgra, ushort[] depth, DepthSpacePoint[] depthSpaceData,
+            int nearThresh, int farThresh, int haloSize)
+        {
+            // Make device
+            Device device = new Device(DriverType.Hardware, DeviceCreationFlags.Debug, FeatureLevel.Level_11_0);
+
+            // Compile compute shader  
+            ComputeShader computeShader = GPGPUHelper.LoadComputeShader(device, "GPGPU/FilterObjects2.compute", "Filter");
+
+            //// Create the UAV's to pass and store data
+            //GPUList<int4> bgraData = new GPUList<int4>(device.ImmediateContext);
+            //bgraData.Add(new int4(250, 44, 88, 255));
+            //GPUList<uint> depthData = new GPUList<uint>(device.ImmediateContext, 1);
+            //GPUList<DepthSpacePoint> depthSpacePointData = new GPUList<DepthSpacePoint>(device.ImmediateContext, 1);
+
+            //Texture2D resultTexture;
+            //var resultData = GPGPUHelper.CreateUnorderedAccessView(device, 1920, 1080, SlimDX.DXGI.Format.R8G8B8A8_UNorm, out resultTexture);
+
+            //// Run the compute shader
+            //device.ImmediateContext.ComputeShader.Set(computeShader);
+            //device.ImmediateContext.ComputeShader.SetUnorderedAccessView(bgraData, 0);
+            //device.ImmediateContext.ComputeShader.SetUnorderedAccessView(depthData, 1);
+            //device.ImmediateContext.ComputeShader.SetUnorderedAccessView(depthSpacePointData, 2);
+            //device.ImmediateContext.ComputeShader.SetUnorderedAccessView(resultData, 3);
+            //device.ImmediateContext.Dispatch(1920, 1080, 1);
+
+            //Texture2D.ToFile(device.ImmediateContext, resultTexture, ImageFileFormat.Png, "uav.png");
+
+            throw new NotImplementedException();
+        }
+
+        public byte[] FilterGPU(byte[] bgra, ushort[] depth, DepthSpacePoint[] depthSpaceData,
+            int nearThresh, int farThresh, int haloSize)
+        {
+            if (computeShader == null)
+            {
+                return new byte[0];
+            }
+
+            var sw = Stopwatch.StartNew();
+
+            // Create a constant buffer to pass the filter configuration
+            var cbuffer = GPGPUHelper.CreateConstantBuffer(device, new int[] { nearThresh, farThresh, haloSize });
+
+            // -- Create GPULists using the immediate context and pass the data --
+            GPUList<int4> bgraData = new GPUList<int4>(device.ImmediateContext);
+            var bgraDataTransformed = new int4[1920 * 1080];
+            for (int i = 0, j = 0;  i < bgra.Length; i += 4, ++j)
+            {
+                bgraDataTransformed[j] = new int4(bgra[i], bgra[i+1], bgra[i+2], bgra[i+3]);
+            }
+            bgraData.AddRange(bgraDataTransformed);
+
+            GPUList<uint> depthData = new GPUList<uint>(device.ImmediateContext);
+            depthData.AddRange(depth.Select(d => (uint)d));
+
+            GPUList<DepthSpacePoint> depthSpacePointData = new GPUList<DepthSpacePoint>(device.ImmediateContext);
+            depthSpacePointData.AddRange(depthSpaceData);
+
+            // Initialize last frame with current color frame, if it was reset
+            if (bLastFrameReset)
+            {
+                lastFramePixels = bgra;
+                bLastFrameReset = false;
+            }
+
+            GPUList<int4> lastFrameData = new GPUList<int4>(device.ImmediateContext);
+            var lastFrameDataTransformed = new int4[1920 * 1080];
+            for (int i = 0, j = 0; i < bgra.Length; i += 4, ++j)
+            {
+                lastFrameDataTransformed[j] = new int4(lastFramePixels[i], lastFramePixels[i + 1], lastFramePixels[i + 2], lastFramePixels[i + 3]);
+            }
+            lastFrameData.AddRange(lastFrameDataTransformed);
+
+            var resultArray = new int4[1920 * 1080];
+            GPUList<int4> resultData = new GPUList<int4>(device.ImmediateContext, resultArray);
+            // --
+
+            // Run the compute shader
+            device.ImmediateContext.ComputeShader.Set(computeShader);
+            device.ImmediateContext.ComputeShader.SetConstantBuffer(cbuffer, 0);
+            device.ImmediateContext.ComputeShader.SetUnorderedAccessView(bgraData.UnorderedAccess, 0);
+            device.ImmediateContext.ComputeShader.SetUnorderedAccessView(depthData.UnorderedAccess, 1);
+            device.ImmediateContext.ComputeShader.SetUnorderedAccessView(depthSpacePointData.UnorderedAccess, 2);
+            device.ImmediateContext.ComputeShader.SetUnorderedAccessView(lastFrameData.UnorderedAccess, 3);
+            device.ImmediateContext.ComputeShader.SetUnorderedAccessView(resultData.UnorderedAccess, 4);
+            device.ImmediateContext.Dispatch(1920/8, 1080/8, 1);
+
+            var result = resultData.ToArray();
+
+            device.ImmediateContext.ComputeShader.SetConstantBuffer(null, 0);
+            device.ImmediateContext.ComputeShader.SetUnorderedAccessView(null, 0);
+            device.ImmediateContext.ComputeShader.SetUnorderedAccessView(null, 1);
+            device.ImmediateContext.ComputeShader.SetUnorderedAccessView(null, 2);
+            device.ImmediateContext.ComputeShader.SetUnorderedAccessView(null, 3);
+            device.ImmediateContext.ComputeShader.SetUnorderedAccessView(null, 4);
+
+            var resultBytes = new byte[1920 * 1080 * 4];
+
+            for (int i = 0, j = 0; i < result.Length; i += 4, ++j)
+            {
+                resultBytes[i] = (byte)result[j].x;
+                resultBytes[i+1] = (byte)result[j].y;
+                resultBytes[i+2] = (byte)result[j].z;
+                resultBytes[i+3] = (byte)result[j].a;
+            }
+
+            lastFramePixels = resultBytes;
+
+            Console.WriteLine($"Filtering took {sw.ElapsedMilliseconds} ms");
+
+            return resultBytes;
         }
 
         public Task<byte[]> FilterAsync(byte[] bgra, ushort[] depth, DepthSpacePoint[] depthSpaceData,

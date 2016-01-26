@@ -108,6 +108,12 @@
                             Margin="4pt"
                             FontSize="12pt"
                             Command="{Binding DataContext.ResetFilterCommand, ElementName = FilterKinectControl}" />
+
+                    <Button Content="Test GPU Filter"
+                            Margin="4pt"
+                            FontSize="12pt"
+                            Command="{Binding DataContext.TestGPUFilterCommand, ElementName = FilterKinectControl}" />
+
                 </StackPanel>
             </GroupBox>
         </Grid>

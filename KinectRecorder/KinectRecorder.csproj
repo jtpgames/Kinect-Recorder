@@ -72,6 +72,10 @@
       <HintPath>..\packages\CommonServiceLocator.1.3\lib\portable-net4+sl5+netcore45+wpa81+wp8\Microsoft.Practices.ServiceLocation.dll</HintPath>
       <Private>True</Private>
     </Reference>
+    <Reference Include="SlimDX, Version=4.0.13.43, Culture=neutral, PublicKeyToken=b1b0c32fd1ffe4f9, processorArchitecture=x86">
+      <HintPath>..\packages\SlimDX.4.0.13.44\lib\NET40\SlimDX.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
     <Reference Include="System" />
     <Reference Include="System.Data" />
     <Reference Include="System.Drawing" />
@@ -101,7 +105,9 @@
     <Compile Include="FilterKinectControl.xaml.cs">
       <DependentUpon>FilterKinectControl.xaml</DependentUpon>
     </Compile>
+    <Compile Include="GPGPU\GPUList.cs" />
     <Compile Include="KinectManager.cs" />
+    <Compile Include="LogConsole.cs" />
     <Compile Include="ObjectFilter.cs" />
     <Compile Include="RawStreamRecorder.xaml.cs">
       <DependentUpon>RawStreamRecorder.xaml</DependentUpon>
@@ -150,6 +156,15 @@
       <Generator>ResXFileCodeGenerator</Generator>
       <LastGenOutput>Resources.Designer.cs</LastGenOutput>
     </EmbeddedResource>
+    <None Include="GPGPU\FilterObjects2.compute">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="GPGPU\FilterObjects.compute">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="GPGPU\Simple.compute">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
     <None Include="packages.config" />
     <None Include="Properties\Settings.settings">
       <Generator>SettingsSingleFileGenerator</Generator>

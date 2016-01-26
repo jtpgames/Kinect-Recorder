@@ -8,16 +8,7 @@ namespace KinectRecorder.ViewModel
 {
     public class MainViewModel : ViewModelBase
     {
-        private ObservableCollection<string> outputLog = new ObservableCollection<string>();
-        public ObservableCollection<string> OutputLog
-        {
-            get { return outputLog; }
-            set
-            {
-                outputLog = value;
-                RaisePropertyChanged();
-            }
-        }
+        public ObservableCollection<string> OutputLog => LogConsole.Logs;
 
         public RelayCommand<Window> ExitCommand { get; private set; }
 
@@ -30,9 +21,9 @@ namespace KinectRecorder.ViewModel
 
             if (IsInDesignMode)
             {
-                outputLog.Add("Initializing kinect ...");
-                outputLog.Add("Kinect up and running");
-                outputLog.Add("Calculating the answer to the Ultimate Question of Life, the Universe, and Everything!!");
+                OutputLog.Add("Initializing kinect ...");
+                OutputLog.Add("Kinect up and running");
+                OutputLog.Add("Calculating the answer to the Ultimate Question of Life, the Universe, and Everything!!");
             }
             else
             {

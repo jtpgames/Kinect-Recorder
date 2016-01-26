@@ -93,6 +93,12 @@ namespace KinectRecorder
 
         public CoordinateMapper CoordinateMapper => _sensor.CoordinateMapper;
 
+        public void PauseKinect(bool bPause = true)
+        {
+            _multireader.IsPaused = bPause;
+            _colordepthReader.IsPaused = bPause;
+        }
+
         private KinectManager()
         {
             InitializeKinect();
