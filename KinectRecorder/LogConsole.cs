@@ -21,9 +21,17 @@ namespace KinectRecorder
 
         public static void WriteLine(string format, params object[] arg)
         {
-            var sb = new StringBuilder();
-            sb.AppendFormat(format, arg);
-            logs.Add(sb.ToString());
+            if (arg != null)
+            {
+                var sb = new StringBuilder();
+                sb.AppendFormat(format, arg);
+                logs.Add(sb.ToString());
+            }
+            else
+            {
+                logs.Add(format);
+            }
+
             Console.WriteLine(format, arg);
         }
     }

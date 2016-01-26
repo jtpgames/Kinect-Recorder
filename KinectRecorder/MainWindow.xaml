@@ -16,7 +16,8 @@
                           IsCheckable="True"
                           IsChecked="{Binding DataContext.IsRunning, ElementName=FilterKinectControl}" />
                 <MenuItem Header="_Open"
-                          IsEnabled="False" />
+                          IsCheckable="True"
+                          Command="{Binding DataContext.OpenRecordingCommand, ElementName=FilterKinectControl}"/>
                 <Separator />
                 <MenuItem Header="_Exit"
                           Command="{Binding Main.ExitCommand, Mode=OneWay}"

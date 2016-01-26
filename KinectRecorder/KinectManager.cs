@@ -1,4 +1,5 @@
 ﻿using Microsoft.Kinect;
+using Microsoft.Kinect.Tools;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
@@ -22,6 +23,8 @@ namespace KinectRecorder
 
     public class KinectManager
     {
+        #region Constants
+
         public static readonly int DepthWidth = 512;
         public static readonly int DepthHeight = 424;
         public static readonly int DepthSize = DepthWidth * DepthHeight;
@@ -32,34 +35,9 @@ namespace KinectRecorder
         public static readonly int ColorHeight = 1080;
         public static readonly int ColorSize = ColorWidth * ColorHeight;
 
-        private static readonly object syncRoot = new object();
+        #endregion
 
-        private static KinectManager instance = null;
-        public static KinectManager Instance
-        {
-            get
-            {
-                // double checked lock --> Better performance
-                if (instance == null)
-                {
-                    lock (syncRoot)
-                    {
-                        if (instance == null)
-                        {
-                            instance = new KinectManager();
-                        }
-                    }
-                }
-
-                return instance;
-            }
-        }
-
-        private KinectSensor _sensor;
-        private MultiSourceFrameReader _multireader;
-        private MultiSourceFrameReader _colordepthReader;
-        private ColorFrameReader _colorReader;
-        private AudioBeamFrameReader _audioReader;
+        #region Events
 
         /// <summary>
         /// Event gets called, when the Color-, Depth-, and IR-Frames arrived.
@@ -91,13 +69,44 @@ namespace KinectRecorder
             AudioSourceFrameArrived?.Invoke(sender, e);
         }
 
+        #endregion
+
+        private KinectSensor _sensor;
+        private MultiSourceFrameReader _multireader;
+        private MultiSourceFrameReader _colordepthReader;
+        private ColorFrameReader _colorReader;
+        private AudioBeamFrameReader _audioReader;
+
+        private KStudioClient client;
+        private KStudioRecording recording;
+        private KStudioPlayback playback;
+
+        private static readonly object syncRoot = new object();
+
+        private static KinectManager instance = null;
+        public static KinectManager Instance
+        {
+            get
+            {
+                // double checked lock --> Better performance
+                if (instance == null)
+                {
+                    lock (syncRoot)
+                    {
+                        if (instance == null)
+                        {
+                            instance = new KinectManager();
+                        }
+                    }
+                }
+
+                return instance;
+            }
+        }
+
         public CoordinateMapper CoordinateMapper => _sensor.CoordinateMapper;
 
-        public void PauseKinect(bool bPause = true)
-        {
-            _multireader.IsPaused = bPause;
-            _colordepthReader.IsPaused = bPause;
-        }
+        public bool Paused { get; private set; } = false;
 
         private KinectManager()
         {
@@ -136,37 +145,79 @@ namespace KinectRecorder
             }
         }
 
-        private void Reader_MultiSourceFrameArrived(object sender, MultiSourceFrameArrivedEventArgs e)
+        #region Public methods
+
+        public void StartRecording(string filePath)
         {
-            // Get a reference to the multi-frame
-            var reference = e.FrameReference.AcquireFrame();
+            client = KStudio.CreateClient();
 
-            // Open color frame
-            using (var frame = reference.ColorFrameReference.AcquireFrame())
-            {
-                if (frame != null)
-                {
-                    
-                }
-            }
+            client.ConnectToService();
 
-            // Open depth frame
-            using (var frame = reference.DepthFrameReference.AcquireFrame())
-            {
-                if (frame != null)
-                {
-                    
-                }
-            }
+            KStudioEventStreamSelectorCollection streamCollection = new KStudioEventStreamSelectorCollection();
+            streamCollection.Add(KStudioEventStreamDataTypeIds.CompressedColor);
+            streamCollection.Add(KStudioEventStreamDataTypeIds.Depth);
+            //Guid Audio = new Guid(0x787c7abd, 0x9f6e, 0x4a85, 0x8d, 0x67, 0x63, 0x65, 0xff, 0x80, 0xcc, 0x69);
+            //streamCollection.Add(Audio);
 
-            // Open infrared frame
-            using (var frame = reference.InfraredFrameReference.AcquireFrame())
+            recording = client.CreateRecording(filePath, streamCollection);
+            recording.Start();
+
+            LogConsole.WriteLine("File opened and recording ...");
+        }
+
+        public void StopRecording()
+        {
+            recording.Stop();
+            recording.Dispose();
+            client.DisconnectFromService();
+            client.Dispose();
+
+            LogConsole.WriteLine("Recording stopped");
+        }
+
+        public void OpenRecording(string filePath)
+        {
+            client = KStudio.CreateClient();
+
+            client.ConnectToService();
+
+            KStudioEventStreamSelectorCollection streamCollection = new KStudioEventStreamSelectorCollection();
+            streamCollection.Add(KStudioEventStreamDataTypeIds.UncompressedColor);
+            streamCollection.Add(KStudioEventStreamDataTypeIds.Depth);
+            //Guid Audio = new Guid(0x787c7abd, 0x9f6e, 0x4a85, 0x8d, 0x67, 0x63, 0x65, 0xff, 0x80, 0xcc, 0x69);
+            //streamCollection.Add(Audio);
+
+            playback = client.CreatePlayback(filePath, streamCollection);
+            playback.StateChanged += KStudioClient_Playback_StateChanged;
+            playback.Start();
+
+            LogConsole.WriteLine("Recording opened and playing ...");
+        }
+
+        public void CloseRecording()
+        {
+            playback.Stop();
+            playback.Dispose();
+            client.DisconnectFromService();
+            client.Dispose();
+        }
+
+        private void KStudioClient_Playback_StateChanged(object sender, EventArgs e)
+        {
+            LogConsole.WriteLine("Playback state: {0}", playback.State.ToString());
+
+            if (playback.State == KStudioPlaybackState.Stopped)
             {
-                if (frame != null)
-                {
-                    
-                }
+                CloseRecording();
             }
+        }
+
+        public void PauseKinect(bool bPause = true)
+        {
+            _multireader.IsPaused = bPause;
+            _colordepthReader.IsPaused = bPause;
+
+            Paused = bPause;
         }
 
         public byte[] ToByteBuffer(ColorFrame frame)
@@ -308,5 +359,7 @@ namespace KinectRecorder
 
             return BitmapSource.Create(width, height, 96, 96, format, null, pixelData, stride);
         }
+
+        #endregion
     }
 }

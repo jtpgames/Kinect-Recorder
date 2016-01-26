@@ -148,13 +148,16 @@ namespace KinectRecorder
         private Device device;
         private ComputeShader computeShader;
 
-        public ObjectFilter()
+        public ObjectFilter(bool bWithGPUSupport = false)
         {
-            // Make device
-            device = new Device(DriverType.Hardware, DeviceCreationFlags.Debug, FeatureLevel.Level_11_0);
+            if (bWithGPUSupport)
+            {
+                // Make device
+                device = new Device(DriverType.Hardware, DeviceCreationFlags.Debug, FeatureLevel.Level_11_0);
 
-            // Compile compute shader  
-            computeShader = GPGPUHelper.LoadComputeShader(device, "GPGPU/FilterObjects.compute", "Filter");
+                // Compile compute shader  
+                computeShader = GPGPUHelper.LoadComputeShader(device, "GPGPU/FilterObjects.compute", "Filter");
+            }
 
             Reset();
         }

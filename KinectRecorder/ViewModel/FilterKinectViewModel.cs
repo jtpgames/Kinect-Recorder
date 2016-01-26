@@ -218,6 +218,8 @@ namespace KinectRecorder.ViewModel
             }
         }
 
+        public RelayCommand OpenRecordingCommand { get; private set; }
+
         public RelayCommand ResetFilterCommand { get; private set; }
 
         public RelayCommand TestGPUFilterCommand { get; private set; }
@@ -233,7 +235,7 @@ namespace KinectRecorder.ViewModel
         /// </summary>
         private byte[] colorData = new byte[KinectManager.ColorSize * 4]; // ColorSize * sizeof(bgra)
 
-        private ObjectFilter objectFilter = new ObjectFilter();
+        private ObjectFilter objectFilter;
 
         public FilterKinectViewModel()
         {
@@ -242,6 +244,10 @@ namespace KinectRecorder.ViewModel
                 HaloSize = 3;
                 NearThreshold = 1589;
                 FarThreshold = 1903;
+
+                objectFilter = new ObjectFilter();
+
+                OpenRecordingCommand = new RelayCommand(OpenRecording);
 
                 ResetFilterCommand = new RelayCommand(objectFilter.Reset);
 
@@ -254,6 +260,25 @@ namespace KinectRecorder.ViewModel
             {
                 Fps = 42;
             }
+        }
+
+        private void OpenRecording()
+        {
+            var ofd = new Microsoft.Win32.OpenFileDialog();
+            ofd.Filter = "Kinect Eventstream|*.xef|All files|*.*";
+            ofd.Title = "Open a recording";
+
+            if (ofd.ShowDialog() == true)
+            {
+                KinectManager.Instance.OpenRecording(ofd.FileName);
+
+                if (!IsRunning) IsRunning = true;
+            }
+        }
+
+        private void CloseRecording()
+        {
+            KinectManager.Instance.CloseRecording();
         }
 
         private void StartProcessing()
@@ -273,6 +298,14 @@ namespace KinectRecorder.ViewModel
             sw.Stop();
 
             base.Cleanup();
+        }
+
+        private void RecordingSourceFrameArrived(byte[] color, ushort[] depth, byte[] audio)
+        {
+            if (color != null)
+            {
+                FilteredVideoFrame = color.ToBgr32BitMap();
+            }
         }
 
         private async void ColorAndDepthSourceFrameArrived(object sender, MultiSourceFrameArrivedEventArgs e)
