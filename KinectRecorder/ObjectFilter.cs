@@ -262,18 +262,36 @@ namespace KinectRecorder
                 return new byte[0];
             }
 
-            var sw = Stopwatch.StartNew();
+            // Initialize last frame with current color frame, if it was reset
+            if (bLastFrameReset)
+            {
+                lastFramePixels = bgra;
+                bLastFrameReset = false;
+            }
+
+            // -- Perform data transformations so the arrays can be passed to the GPU --
+
+            var bgraDataTransformed = new int4[1920 * 1080];
+            for (int i = 0, j = 0; i < bgra.Length; i += 4, ++j)
+            {
+                bgraDataTransformed[j] = new int4(bgra[i], bgra[i + 1], bgra[i + 2], bgra[i + 3]);
+            }
+
+            var lastFrameDataTransformed = new int4[1920 * 1080];
+            for (int i = 0, j = 0; i < bgra.Length; i += 4, ++j)
+            {
+                lastFrameDataTransformed[j] = new int4(lastFramePixels[i], lastFramePixels[i + 1], lastFramePixels[i + 2], lastFramePixels[i + 3]);
+            }
+
+            // --
+
+            //var sw = Stopwatch.StartNew();
 
             // Create a constant buffer to pass the filter configuration
             var cbuffer = GPGPUHelper.CreateConstantBuffer(device, new int[] { nearThresh, farThresh, haloSize });
 
             // -- Create GPULists using the immediate context and pass the data --
             GPUList<int4> bgraData = new GPUList<int4>(device.ImmediateContext);
-            var bgraDataTransformed = new int4[1920 * 1080];
-            for (int i = 0, j = 0;  i < bgra.Length; i += 4, ++j)
-            {
-                bgraDataTransformed[j] = new int4(bgra[i], bgra[i+1], bgra[i+2], bgra[i+3]);
-            }
             bgraData.AddRange(bgraDataTransformed);
 
             GPUList<uint> depthData = new GPUList<uint>(device.ImmediateContext);
@@ -292,24 +310,14 @@ namespace KinectRecorder
             //    }
             //}));
 
-            // Initialize last frame with current color frame, if it was reset
-            if (bLastFrameReset)
-            {
-                lastFramePixels = bgra;
-                bLastFrameReset = false;
-            }
-
             GPUList<int4> lastFrameData = new GPUList<int4>(device.ImmediateContext);
-            var lastFrameDataTransformed = new int4[1920 * 1080];
-            for (int i = 0, j = 0; i < bgra.Length; i += 4, ++j)
-            {
-                lastFrameDataTransformed[j] = new int4(lastFramePixels[i], lastFramePixels[i + 1], lastFramePixels[i + 2], lastFramePixels[i + 3]);
-            }
             lastFrameData.AddRange(lastFrameDataTransformed);
 
             var resultArray = new int4[1920 * 1080];
             GPUList<int4> resultData = new GPUList<int4>(device.ImmediateContext, resultArray);
             // --
+
+            var sw = Stopwatch.StartNew();
 
             // Run the compute shader
             device.ImmediateContext.ComputeShader.Set(computeShader);
@@ -327,6 +335,8 @@ namespace KinectRecorder
 
             var result = resultData.ToArray();
 
+            sw.Stop();
+
             // -- Clean up --
             device.ImmediateContext.ComputeShader.SetConstantBuffer(null, 0);
             device.ImmediateContext.ComputeShader.SetUnorderedAccessView(null, 0);
@@ -343,6 +353,8 @@ namespace KinectRecorder
             resultData.Dispose();
             // --
 
+            Debug.WriteLine($"Filtering took {sw.ElapsedMilliseconds} ms");
+
             var resultBytes = new byte[1920 * 1080 * 4];
 
             for (int i = 0, j = 0; i < resultBytes.Length; i += 4, ++j)
@@ -354,8 +366,6 @@ namespace KinectRecorder
             }
 
             lastFramePixels = resultBytes;
-
-            Debug.WriteLine($"Filtering took {sw.ElapsedMilliseconds} ms");
 
             return resultBytes;
         }
