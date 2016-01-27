@@ -17,6 +17,7 @@ RWStructuredBuffer<DepthSpacePoint> depthSpaceData	: register (u2);
 RWStructuredBuffer<int4> lastFrame					: register (u3);
 RWStructuredBuffer<int4> result						: register (u4);
 
+// TODO: Pass halo as a structured buffer instead of calculating it in every thread
 static int2 halo[1024];
 
 static const uint ColorWidth = 1920;

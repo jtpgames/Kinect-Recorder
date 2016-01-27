@@ -194,8 +194,10 @@ namespace KinectRecorder
 
         ~ObjectFilter()
         {
-            computeShader.Dispose();
-            device.Dispose();
+            if (computeShader != null)
+                computeShader.Dispose();
+            if (device != null)
+                device.Dispose();
         }
 
         public void Reset()

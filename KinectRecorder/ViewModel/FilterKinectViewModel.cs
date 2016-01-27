@@ -9,6 +9,11 @@ using System.Windows.Media.Imaging;
 using Microsoft.Kinect;
 using System.Windows.Media;
 using GalaSoft.MvvmLight.CommandWpf;
+using Microsoft.Win32;
+
+using KinectRecorder.Multimedia;
+
+using MF = SharpDX.MediaFoundation;
 
 namespace KinectRecorder.ViewModel
 {
@@ -174,6 +179,14 @@ namespace KinectRecorder.ViewModel
             {
                 filteredVideoFrame = value;
                 RaisePropertyChanged();
+
+                if (IsRecording && filteredVideoFrame != null)
+                {
+                    var pixels = new byte[KinectManager.ColorWidth * KinectManager.ColorHeight * 4];
+                    ((filteredVideoFrame) as BitmapSource).CopyPixels(pixels, KinectManager.ColorWidth * 4, 0);
+
+                    videoWriter.AddFrame(pixels.ToMemoryMappedTexture());
+                }
             }
         }
 
@@ -201,6 +214,21 @@ namespace KinectRecorder.ViewModel
             }
         }
 
+        private bool isRecording = false;
+        public bool IsRecording
+        {
+            get
+            {
+                return isRecording;
+            }
+
+            set
+            {
+                isRecording = value;
+                RaisePropertyChanged();
+            }
+        }
+
         private Stopwatch sw;
         private int totalFrames = 0;
         private int fps;
@@ -218,11 +246,15 @@ namespace KinectRecorder.ViewModel
             }
         }
 
+        public RelayCommand<System.Windows.Controls.Button> ToggleRecordingCommand { get; private set; }
+
         public RelayCommand OpenRecordingCommand { get; private set; }
 
         public RelayCommand ResetFilterCommand { get; private set; }
 
         public RelayCommand TestGPUFilterCommand { get; private set; }
+
+        private MediaFoundationVideoWriter videoWriter;
 
         private bool bTestGPU = false;
 
@@ -255,8 +287,42 @@ namespace KinectRecorder.ViewModel
             NearThreshold = 1589;
             FarThreshold = 1903;
 
-            //objectFilter = new ObjectFilter();
-            objectFilter = ObjectFilter.CreateObjectFilterWithGPUSupport();
+            objectFilter = new ObjectFilter();
+            //objectFilter = ObjectFilter.CreateObjectFilterWithGPUSupport();
+
+            ToggleRecordingCommand = new RelayCommand<System.Windows.Controls.Button>(sender =>
+            {
+                if (!IsRecording)
+                {
+                    var sfd = new SaveFileDialog();
+                    sfd.Filter = "MPEG-4 Video|*.mp4|All files|*.*";
+                    sfd.Title = "Save the recording";
+
+                    if (sfd.ShowDialog() == true)
+                    {
+                        if (videoWriter != null)
+                        {
+                            videoWriter.Dispose();
+                        }
+
+                        videoWriter = new MP4VideoWriter(sfd.FileName, new SharpDX.Size2(1920, 1080), MF.VideoFormatGuids.Argb32);
+
+                        sender.Content = "Stop recording";
+                        IsRecording = true;
+                    }
+                }
+                else
+                {
+                    if (videoWriter != null)
+                    {
+                        videoWriter.Dispose();
+                        videoWriter = null;
+                    }
+
+                    sender.Content = "Record";
+                    IsRecording = false;
+                }
+            });
 
             OpenRecordingCommand = new RelayCommand(OpenRecording);
 

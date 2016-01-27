@@ -17,19 +17,29 @@
                           IsChecked="{Binding DataContext.IsRunning, ElementName=FilterKinectControl}" />
                 <MenuItem Header="_Open"
                           IsCheckable="True"
-                          Command="{Binding DataContext.OpenRecordingCommand, ElementName=FilterKinectControl}"/>
+                          Command="{Binding DataContext.OpenRecordingCommand, ElementName=FilterKinectControl}" />
                 <Separator />
                 <MenuItem Header="_Exit"
                           Command="{Binding Main.ExitCommand, Mode=OneWay}"
                           CommandParameter="{Binding ElementName=window, Mode=OneWay}" />
             </MenuItem>
-            <MenuItem Header="_Record">
-                <MenuItem Header="_Start"
-                          IsEnabled="False" />
-                <MenuItem Header="_Stop"
-                          IsEnabled="False" />
-            </MenuItem>
         </Menu>
+        <ToolBarTray DockPanel.Dock="Top">
+            <!--<ToolBar>
+                <Button Command="New"
+                        Content="New" />
+                <Button Command="Open"
+                        Content="Open" />
+                <Button Command="Save"
+                        Content="Save" />
+            </ToolBar>-->
+            <ToolBar>
+                <Button Command="{Binding DataContext.ToggleRecordingCommand, ElementName=FilterKinectControl}"
+                        CommandParameter="{Binding Mode=OneWay, RelativeSource={RelativeSource Self}}"
+                        Content="Record"
+                        ToolTip="Record all frames visible in the Filtered View." />
+            </ToolBar>
+        </ToolBarTray>
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="*" />

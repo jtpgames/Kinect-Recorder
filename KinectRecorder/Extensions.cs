@@ -7,6 +7,8 @@ using System.Threading.Tasks;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 
+using KinectRecorder.Multimedia;
+
 namespace KinectRecorder
 {
     static class ByteArrayExtensions
@@ -23,6 +25,24 @@ namespace KinectRecorder
                 pixels, stride);
 
             return image;
+        }
+
+        public static MemoryMappedTexture32bpp BGRAToMemoryMappedTextureARGB(this byte[] bgra)
+        {
+            var tex = new MemoryMappedTexture32bpp(new SharpDX.Size2(KinectManager.ColorWidth, KinectManager.ColorHeight));
+
+            tex.FillWith(bgra.Reverse());
+
+            return tex;
+        }
+
+        public static MemoryMappedTexture32bpp ToMemoryMappedTexture(this byte[] pixels)
+        {
+            var tex = new MemoryMappedTexture32bpp(new SharpDX.Size2(KinectManager.ColorWidth, KinectManager.ColorHeight));
+
+            tex.FillWith(pixels);
+
+            return tex;
         }
 
         public static string ToFormattedString(this byte[] pixels, int start = 0, int count = 42)
