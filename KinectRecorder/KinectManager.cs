@@ -69,6 +69,12 @@ namespace KinectRecorder
             AudioSourceFrameArrived?.Invoke(sender, e);
         }
 
+        public event Action RecordingStopped;
+        private void OnRecordingStopped()
+        {
+            RecordingStopped?.Invoke();
+        }
+
         #endregion
 
         private KinectSensor _sensor;
@@ -160,7 +166,7 @@ namespace KinectRecorder
             var Audio = new Guid(0x787c7abd, 0x9f6e, 0x4a85, 0x8d, 0x67, 0x63, 0x65, 0xff, 0x80, 0xcc, 0x69);
             streamCollection.Add(Audio);
 
-            recording = client.CreateRecording(filePath, streamCollection);
+            recording = client.CreateRecording(filePath, streamCollection, KStudioRecordingFlags.IgnoreOptionalStreams);
             recording.Start();
 
             LogConsole.WriteLine("File opened and recording ...");
@@ -205,6 +211,8 @@ namespace KinectRecorder
 
         public void CloseRecording()
         {
+            OnRecordingStopped();
+
             if (playback != null)
             {
                 playback.Stop();
@@ -235,6 +243,8 @@ namespace KinectRecorder
         {
             _multireader.IsPaused = bPause;
             _colordepthReader.IsPaused = bPause;
+            _colorReader.IsPaused = bPause;
+            _audioReader.IsPaused = bPause;
 
             Paused = bPause;
         }

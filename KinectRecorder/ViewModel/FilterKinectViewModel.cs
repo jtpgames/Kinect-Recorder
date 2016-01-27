@@ -270,10 +270,16 @@ namespace KinectRecorder.ViewModel
 
             if (ofd.ShowDialog() == true)
             {
+                KinectManager.Instance.RecordingStopped += RecordingStopped;
                 KinectManager.Instance.OpenRecording(ofd.FileName);
 
                 if (!IsRunning) IsRunning = true;
             }
+        }
+
+        private void RecordingStopped()
+        {
+            IsRunning = false;
         }
 
         private void CloseRecording()
@@ -283,11 +289,19 @@ namespace KinectRecorder.ViewModel
 
         private void StartProcessing()
         {
+            if (KinectManager.Instance.Paused)
+            {
+                KinectManager.Instance.PauseKinect(false);
+            }
             KinectManager.Instance.ColorAndDepthSourceFrameArrived += ColorAndDepthSourceFrameArrived;
         }
 
         private void StopProcessing()
         {
+            if (!KinectManager.Instance.Paused)
+            {
+                KinectManager.Instance.PauseKinect();
+            }
             KinectManager.Instance.ColorAndDepthSourceFrameArrived -= ColorAndDepthSourceFrameArrived;
         }
 
