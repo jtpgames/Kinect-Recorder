@@ -10,6 +10,8 @@ namespace KinectRecorder.ViewModel
     {
         public ObservableCollection<string> OutputLog => LogConsole.Logs;
 
+        public RelayCommand OpenRawStreamRecWindowCommand { get; private set; }
+
         public RelayCommand<Window> ExitCommand { get; private set; }
 
         /// <summary>
@@ -17,8 +19,6 @@ namespace KinectRecorder.ViewModel
         /// </summary>
         public MainViewModel()
         {
-            ExitCommand = new RelayCommand<Window>(w => w.Close());
-
             if (IsInDesignMode)
             {
                 OutputLog.Add("Initializing kinect ...");
@@ -27,7 +27,8 @@ namespace KinectRecorder.ViewModel
             }
             else
             {
-                // Code runs "for real"
+                OpenRawStreamRecWindowCommand = new RelayCommand(() => new KStudioRawStreamRecorder().Show());
+                ExitCommand = new RelayCommand<Window>(w => w.Close());
             }
         }
     }

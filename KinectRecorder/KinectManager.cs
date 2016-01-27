@@ -154,10 +154,11 @@ namespace KinectRecorder
             client.ConnectToService();
 
             KStudioEventStreamSelectorCollection streamCollection = new KStudioEventStreamSelectorCollection();
-            streamCollection.Add(KStudioEventStreamDataTypeIds.CompressedColor);
+            streamCollection.Add(KStudioEventStreamDataTypeIds.UncompressedColor);
             streamCollection.Add(KStudioEventStreamDataTypeIds.Depth);
-            //Guid Audio = new Guid(0x787c7abd, 0x9f6e, 0x4a85, 0x8d, 0x67, 0x63, 0x65, 0xff, 0x80, 0xcc, 0x69);
-            //streamCollection.Add(Audio);
+            // The enum value for Audio is missing. The GUID below was taken from Kinect Studio.
+            var Audio = new Guid(0x787c7abd, 0x9f6e, 0x4a85, 0x8d, 0x67, 0x63, 0x65, 0xff, 0x80, 0xcc, 0x69);
+            streamCollection.Add(Audio);
 
             recording = client.CreateRecording(filePath, streamCollection);
             recording.Start();
@@ -167,10 +168,18 @@ namespace KinectRecorder
 
         public void StopRecording()
         {
-            recording.Stop();
-            recording.Dispose();
-            client.DisconnectFromService();
-            client.Dispose();
+            if (recording != null)
+            {
+                recording.Stop();
+                recording.Dispose();
+                recording = null;
+            }
+            if (client != null)
+            {
+                client.DisconnectFromService();
+                client.Dispose();
+                client = null;
+            }
 
             LogConsole.WriteLine("Recording stopped");
         }
@@ -196,10 +205,20 @@ namespace KinectRecorder
 
         public void CloseRecording()
         {
-            playback.Stop();
-            playback.Dispose();
-            client.DisconnectFromService();
-            client.Dispose();
+            if (playback != null)
+            {
+                playback.Stop();
+                playback.Dispose();
+                playback = null;
+            }
+            if (client != null)
+            {
+                client.DisconnectFromService();
+                client.Dispose();
+                client = null;
+            }
+
+            LogConsole.WriteLine("Recording stopped");
         }
 
         private void KStudioClient_Playback_StateChanged(object sender, EventArgs e)

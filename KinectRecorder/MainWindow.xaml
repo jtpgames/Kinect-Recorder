@@ -102,7 +102,7 @@
                 <StackPanel Orientation="Vertical">
                     <Button x:Name="btn_OpenRawStreamRec"
                             Content="Open Raw Stream Recorder"
-                            Click="btn_OpenRawStreamRec_Click"
+                            Command="{Binding Main.OpenRawStreamRecWindowCommand, Mode=OneWay}"
                             Margin="4pt"
                             FontSize="12pt" />
                     <Button Content="Reset Filter"

@@ -24,12 +24,5 @@ namespace KinectRecorder
         {
             InitializeComponent();
         }
-
-        private void btn_OpenRawStreamRec_Click(object sender, RoutedEventArgs e)
-        {
-            var rawStreamRecorder = new RawStreamRecorder();
-
-            rawStreamRecorder.Show();
-        }
     }
 }

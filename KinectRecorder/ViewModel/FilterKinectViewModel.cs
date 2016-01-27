@@ -300,14 +300,6 @@ namespace KinectRecorder.ViewModel
             base.Cleanup();
         }
 
-        private void RecordingSourceFrameArrived(byte[] color, ushort[] depth, byte[] audio)
-        {
-            if (color != null)
-            {
-                FilteredVideoFrame = color.ToBgr32BitMap();
-            }
-        }
-
         private async void ColorAndDepthSourceFrameArrived(object sender, MultiSourceFrameArrivedEventArgs e)
         {
             // Get a reference to the multi-frame
