@@ -24,6 +24,28 @@ namespace KinectRecorder
 
             return image;
         }
+
+        public static string ToFormattedString(this byte[] pixels, int start = 0, int count = 42)
+        {
+            var sb = new StringBuilder();
+
+            const int lineWidth = 20;
+            byte[] arr = new byte[lineWidth];
+
+            int len = start + count;
+            len = len.Clamp(len, pixels.Length);
+            for (int i = start; i < len; i += lineWidth)
+            {
+                Array.Copy(pixels, i, arr, 0, lineWidth);
+                foreach (var item in arr)
+                {
+                    sb.AppendFormat(" {0} ", item);
+                }
+                sb.AppendLine();
+            }
+
+            return sb.ToString();
+        }
     }
 
     static class MathExtensions

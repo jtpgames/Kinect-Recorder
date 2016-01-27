@@ -71,7 +71,9 @@ bool allDepthsValidWithinHalo(const int coordx, const int coordy)
 	return true;
 }
 
-[numthreads(8, 8, 1)]
+static const uint NumThreads = 256;
+
+[numthreads(NumThreads, 1, 1)]
 void Filter(uint3 threadID : SV_DispatchThreadID)
 {	
 	int s = haloSize;
@@ -95,7 +97,8 @@ void Filter(uint3 threadID : SV_DispatchThreadID)
 		}
 	}
 
-	int colorIndex = threadID.x + threadID.y * ColorWidth;
+	//int colorIndex = threadID.x + threadID.y * ColorWidth;
+	int colorIndex = threadID.x;
 
 	const DepthSpacePoint dsp = depthSpaceData[colorIndex];
 	// show last frame by default
@@ -112,6 +115,4 @@ void Filter(uint3 threadID : SV_DispatchThreadID)
 	}
 
 	result[colorIndex] = src;
-
-	//result[threadID.x + threadID.y * 1080] = readPixel(bgra, threadID.x, threadID.y);
 }

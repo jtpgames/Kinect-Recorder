@@ -241,25 +241,31 @@ namespace KinectRecorder.ViewModel
         {
             if (!IsInDesignMode)
             {
-                HaloSize = 3;
-                NearThreshold = 1589;
-                FarThreshold = 1903;
-
-                objectFilter = new ObjectFilter();
-
-                OpenRecordingCommand = new RelayCommand(OpenRecording);
-
-                ResetFilterCommand = new RelayCommand(objectFilter.Reset);
-
-                //TestGPUFilterCommand = new RelayCommand(objectFilter.testgpu);
-                TestGPUFilterCommand = new RelayCommand(() => bTestGPU = true);
-
-                sw = Stopwatch.StartNew();
+                Initialize();
             }
             else
             {
                 Fps = 42;
             }
+        }
+
+        private void Initialize()
+        {
+            HaloSize = 3;
+            NearThreshold = 1589;
+            FarThreshold = 1903;
+
+            //objectFilter = new ObjectFilter();
+            objectFilter = ObjectFilter.CreateObjectFilterWithGPUSupport();
+
+            OpenRecordingCommand = new RelayCommand(OpenRecording);
+
+            ResetFilterCommand = new RelayCommand(objectFilter.Reset);
+
+            //TestGPUFilterCommand = new RelayCommand(objectFilter.testgpu);
+            TestGPUFilterCommand = new RelayCommand(() => bTestGPU = true);
+
+            sw = Stopwatch.StartNew();
         }
 
         private void OpenRecording()
@@ -418,6 +424,7 @@ namespace KinectRecorder.ViewModel
                     if (bTestGPU)
                     {
                         var bytes = objectFilter.FilterGPU(colorData, depthData, depthSpaceData, NearThreshold, FarThreshold, HaloSize);
+                        Debug.WriteLine(bytes.ToFormattedString(1920*1080-2*4, 1000));
                         FilteredVideoFrame = bytes.ToBgr32BitMap();
                         bTestGPU = false;
                         KinectManager.Instance.PauseKinect();

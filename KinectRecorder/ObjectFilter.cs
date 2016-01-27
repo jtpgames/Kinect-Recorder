@@ -148,18 +148,45 @@ namespace KinectRecorder
         private Device device;
         private ComputeShader computeShader;
 
-        public ObjectFilter(bool bWithGPUSupport = false)
+        public static Task<ObjectFilter> CreateObjectFilterWithGPUSupportAsync()
         {
-            if (bWithGPUSupport)
-            {
-                // Make device
-                device = new Device(DriverType.Hardware, DeviceCreationFlags.Debug, FeatureLevel.Level_11_0);
+            throw new NotImplementedException();
+        }
 
-                // Compile compute shader  
-                computeShader = GPGPUHelper.LoadComputeShader(device, "GPGPU/FilterObjects.compute", "Filter");
-            }
+        public static ObjectFilter CreateObjectFilterWithGPUSupport()
+        {
+            var filter = new ObjectFilter();
+            filter.InitGPUSupport();
+            return filter;
+        }
 
+        public ObjectFilter()
+        {
             Reset();
+        }
+
+        private Task InitGPUSupportAsync()
+        {
+            // Make device
+            device = new Device(DriverType.Hardware, DeviceCreationFlags.Debug, FeatureLevel.Level_11_0);
+
+            // Compile compute shader
+            return Task.Run(() => computeShader = GPGPUHelper.LoadComputeShader(device, "GPGPU/FilterObjects.compute", "Filter"));
+        }
+
+        private void InitGPUSupport()
+        {
+            // Make device
+            device = new Device(DriverType.Hardware, DeviceCreationFlags.Debug, FeatureLevel.Level_11_0);
+
+            // Compile compute shader  
+            computeShader = GPGPUHelper.LoadComputeShader(device, "GPGPU/FilterObjects.compute", "Filter");
+        }
+
+        ~ObjectFilter()
+        {
+            computeShader.Dispose();
+            device.Dispose();
         }
 
         public void Reset()
@@ -270,10 +297,15 @@ namespace KinectRecorder
             device.ImmediateContext.ComputeShader.SetUnorderedAccessView(depthSpacePointData.UnorderedAccess, 2);
             device.ImmediateContext.ComputeShader.SetUnorderedAccessView(lastFrameData.UnorderedAccess, 3);
             device.ImmediateContext.ComputeShader.SetUnorderedAccessView(resultData.UnorderedAccess, 4);
-            device.ImmediateContext.Dispatch(1920/8, 1080/8, 1);
+            // gcd(1920, 1080) = 120
+            // 120 * 120 > 1024 --> throws shader compilation exception
+            // so we reduce it to 30
+            //device.ImmediateContext.Dispatch(1920 / 30, 1080 / 30, 1);
+            device.ImmediateContext.Dispatch(1920 * 1080 / 256, 1, 1);
 
             var result = resultData.ToArray();
 
+            // -- Clean up --
             device.ImmediateContext.ComputeShader.SetConstantBuffer(null, 0);
             device.ImmediateContext.ComputeShader.SetUnorderedAccessView(null, 0);
             device.ImmediateContext.ComputeShader.SetUnorderedAccessView(null, 1);
@@ -281,9 +313,16 @@ namespace KinectRecorder
             device.ImmediateContext.ComputeShader.SetUnorderedAccessView(null, 3);
             device.ImmediateContext.ComputeShader.SetUnorderedAccessView(null, 4);
 
+            bgraData.Dispose();
+            depthData.Dispose();
+            depthSpacePointData.Dispose();
+            lastFrameData.Dispose();
+            resultData.Dispose();
+            // --
+
             var resultBytes = new byte[1920 * 1080 * 4];
 
-            for (int i = 0, j = 0; i < result.Length; i += 4, ++j)
+            for (int i = 0, j = 0; i < resultBytes.Length; i += 4, ++j)
             {
                 resultBytes[i] = (byte)result[j].x;
                 resultBytes[i+1] = (byte)result[j].y;
