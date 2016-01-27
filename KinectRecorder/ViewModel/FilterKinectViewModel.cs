@@ -263,7 +263,7 @@ namespace KinectRecorder.ViewModel
             ResetFilterCommand = new RelayCommand(objectFilter.Reset);
 
             //TestGPUFilterCommand = new RelayCommand(objectFilter.testgpu);
-            TestGPUFilterCommand = new RelayCommand(() => bTestGPU = true);
+            TestGPUFilterCommand = new RelayCommand(() => bTestGPU = !bTestGPU);
 
             sw = Stopwatch.StartNew();
         }
@@ -424,26 +424,24 @@ namespace KinectRecorder.ViewModel
                     if (bTestGPU)
                     {
                         var bytes = objectFilter.FilterGPU(colorData, depthData, depthSpaceData, NearThreshold, FarThreshold, HaloSize);
-                        Debug.WriteLine(bytes.ToFormattedString(1920*1080-2*4, 1000));
-                        FilteredVideoFrame = bytes.ToBgr32BitMap();
-                        bTestGPU = false;
-                        KinectManager.Instance.PauseKinect();
-                        return;
-                    }
-
-                    if (FilterEnabled)
-                    {
-                        var bytes = await objectFilter.FilterAsync(colorData, depthData, depthSpaceData, NearThreshold, FarThreshold, HaloSize);
-                        FilteredVideoFrame = bytes.ToBgr32BitMap();
-                    }
-                    else if (VisualizeThresholds)
-                    {
-                        var bytes = await Task.Run(() => Threshold(colorData));
                         FilteredVideoFrame = bytes.ToBgr32BitMap();
                     }
                     else
                     {
-                        FilteredVideoFrame = KinectManager.Instance.ToBitmap(frame);
+                        if (FilterEnabled)
+                        {
+                            var bytes = await objectFilter.FilterCPUAsync(colorData, depthData, depthSpaceData, NearThreshold, FarThreshold, HaloSize);
+                            FilteredVideoFrame = bytes.ToBgr32BitMap();
+                        }
+                        else if (VisualizeThresholds)
+                        {
+                            var bytes = await Task.Run(() => Threshold(colorData));
+                            FilteredVideoFrame = bytes.ToBgr32BitMap();
+                        }
+                        else
+                        {
+                            FilteredVideoFrame = KinectManager.Instance.ToBitmap(frame);
+                        }
                     }
                 }
             }

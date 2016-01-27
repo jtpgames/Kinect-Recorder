@@ -13,11 +13,18 @@ using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 
 using Buffer = SlimDX.Direct3D11.Buffer;
+using Debug = System.Diagnostics.Debug;
 
 namespace KinectRecorder
 {
     class ObjectFilter
     {
+        public enum FilterMode
+        {
+            CPU,
+            GPU
+        }
+
         struct int4
         {
             public int x, y, z, a;
@@ -160,6 +167,8 @@ namespace KinectRecorder
             return filter;
         }
 
+        public FilterMode _FilterMode { get; set; }
+
         public ObjectFilter()
         {
             Reset();
@@ -211,35 +220,38 @@ namespace KinectRecorder
             Texture2D.ToFile(device.ImmediateContext, uavTexture, ImageFileFormat.Png, "uav.png");
         }
 
-        public byte[] FilterGPU2(byte[] bgra, ushort[] depth, DepthSpacePoint[] depthSpaceData,
+        public Task<byte[]> FilterAsync(byte[] bgra, ushort[] depth, DepthSpacePoint[] depthSpaceData,
             int nearThresh, int farThresh, int haloSize)
         {
-            // Make device
-            Device device = new Device(DriverType.Hardware, DeviceCreationFlags.Debug, FeatureLevel.Level_11_0);
+            switch (_FilterMode)
+            {
+                case FilterMode.CPU:
+                    return FilterCPUAsync(bgra, depth, depthSpaceData, nearThresh, farThresh, haloSize);
+                case FilterMode.GPU:
+                    return FilterGPUAsync(bgra, depth, depthSpaceData, nearThresh, farThresh, haloSize);
+                default:
+                    return Task.FromResult(new byte[0]);
+            }
+        }
 
-            // Compile compute shader  
-            ComputeShader computeShader = GPGPUHelper.LoadComputeShader(device, "GPGPU/FilterObjects2.compute", "Filter");
+        public byte[] Filter(byte[] bgra, ushort[] depth, DepthSpacePoint[] depthSpaceData,
+            int nearThresh, int farThresh, int haloSize)
+        {
+            switch (_FilterMode)
+            {
+                case FilterMode.CPU:
+                    return FilterCPU(bgra, depth, depthSpaceData, nearThresh, farThresh, haloSize);
+                case FilterMode.GPU:
+                    return FilterGPU(bgra, depth, depthSpaceData, nearThresh, farThresh, haloSize);
+                default:
+                    return new byte[0];
+            }
+        }
 
-            //// Create the UAV's to pass and store data
-            //GPUList<int4> bgraData = new GPUList<int4>(device.ImmediateContext);
-            //bgraData.Add(new int4(250, 44, 88, 255));
-            //GPUList<uint> depthData = new GPUList<uint>(device.ImmediateContext, 1);
-            //GPUList<DepthSpacePoint> depthSpacePointData = new GPUList<DepthSpacePoint>(device.ImmediateContext, 1);
-
-            //Texture2D resultTexture;
-            //var resultData = GPGPUHelper.CreateUnorderedAccessView(device, 1920, 1080, SlimDX.DXGI.Format.R8G8B8A8_UNorm, out resultTexture);
-
-            //// Run the compute shader
-            //device.ImmediateContext.ComputeShader.Set(computeShader);
-            //device.ImmediateContext.ComputeShader.SetUnorderedAccessView(bgraData, 0);
-            //device.ImmediateContext.ComputeShader.SetUnorderedAccessView(depthData, 1);
-            //device.ImmediateContext.ComputeShader.SetUnorderedAccessView(depthSpacePointData, 2);
-            //device.ImmediateContext.ComputeShader.SetUnorderedAccessView(resultData, 3);
-            //device.ImmediateContext.Dispatch(1920, 1080, 1);
-
-            //Texture2D.ToFile(device.ImmediateContext, resultTexture, ImageFileFormat.Png, "uav.png");
-
-            throw new NotImplementedException();
+        public Task<byte[]> FilterGPUAsync(byte[] bgra, ushort[] depth, DepthSpacePoint[] depthSpaceData,
+            int nearThresh, int farThresh, int haloSize)
+        {
+            return Task.Run(() => FilterGPU(bgra, depth, depthSpaceData, nearThresh, farThresh, haloSize));
         }
 
         public byte[] FilterGPU(byte[] bgra, ushort[] depth, DepthSpacePoint[] depthSpaceData,
@@ -267,8 +279,18 @@ namespace KinectRecorder
             GPUList<uint> depthData = new GPUList<uint>(device.ImmediateContext);
             depthData.AddRange(depth.Select(d => (uint)d));
 
-            GPUList<DepthSpacePoint> depthSpacePointData = new GPUList<DepthSpacePoint>(device.ImmediateContext);
-            depthSpacePointData.AddRange(depthSpaceData);
+            GPUList<DepthSpacePoint> depthSpacePointData = new GPUList<DepthSpacePoint>(device.ImmediateContext, depthSpaceData);
+            //depthSpacePointData.AddRange(depthSpaceData.Select(dsp => {
+
+            //    if (dsp.X == float.NegativeInfinity || dsp.Y == -float.NegativeInfinity)
+            //    {
+            //        return new DepthSpacePoint() { X = -1, Y = -1 };
+            //    }
+            //    else
+            //    {
+            //        return dsp;
+            //    }
+            //}));
 
             // Initialize last frame with current color frame, if it was reset
             if (bLastFrameReset)
@@ -313,6 +335,7 @@ namespace KinectRecorder
             device.ImmediateContext.ComputeShader.SetUnorderedAccessView(null, 3);
             device.ImmediateContext.ComputeShader.SetUnorderedAccessView(null, 4);
 
+            cbuffer.Dispose();
             bgraData.Dispose();
             depthData.Dispose();
             depthSpacePointData.Dispose();
@@ -332,18 +355,18 @@ namespace KinectRecorder
 
             lastFramePixels = resultBytes;
 
-            Console.WriteLine($"Filtering took {sw.ElapsedMilliseconds} ms");
+            Debug.WriteLine($"Filtering took {sw.ElapsedMilliseconds} ms");
 
             return resultBytes;
         }
 
-        public Task<byte[]> FilterAsync(byte[] bgra, ushort[] depth, DepthSpacePoint[] depthSpaceData,
+        public Task<byte[]> FilterCPUAsync(byte[] bgra, ushort[] depth, DepthSpacePoint[] depthSpaceData,
             int nearThresh, int farThresh, int haloSize)
         {
             return Task.Run(() => Filter(bgra, depth, depthSpaceData, nearThresh, farThresh, haloSize));
         }
 
-        public unsafe byte[] Filter(byte[] bgra, ushort[] depth, DepthSpacePoint[] depthSpaceData,
+        public unsafe byte[] FilterCPU(byte[] bgra, ushort[] depth, DepthSpacePoint[] depthSpaceData,
             int nearThresh, int farThresh, int haloSize)
         {
             List<IntPoint> halo = new List<IntPoint>();
@@ -422,7 +445,7 @@ namespace KinectRecorder
 
             lastFramePixels = result;
 
-            Console.WriteLine($"Filtering took {sw.ElapsedMilliseconds} ms");
+            Debug.WriteLine($"Filtering took {sw.ElapsedMilliseconds} ms");
 
             return result;
         }

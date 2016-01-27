@@ -167,9 +167,6 @@
       <Generator>ResXFileCodeGenerator</Generator>
       <LastGenOutput>Resources.Designer.cs</LastGenOutput>
     </EmbeddedResource>
-    <None Include="GPGPU\FilterObjects2.compute">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
     <None Include="GPGPU\FilterObjects.compute">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>

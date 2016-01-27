@@ -19,10 +19,10 @@ RWStructuredBuffer<int4> result						: register (u4);
 
 static int2 halo[1024];
 
-int ColorWidth = 1920;
-int ColorSize = 1920 * 1080;
-int DepthWidth = 512;
-int DepthHeight = 424;
+static const uint ColorWidth = 1920;
+static const uint ColorSize = 1920 * 1080;
+static const uint DepthWidth = 512;
+static const uint DepthHeight = 424;
 
 int4 readPixel(RWStructuredBuffer<int4> buffer, int x, int y)
 {
@@ -56,6 +56,12 @@ DepthSpacePoint readPixel(RWStructuredBuffer<DepthSpacePoint> buffer, int x, int
 
 bool allDepthsValidWithinHalo(const int coordx, const int coordy)
 {
+	/*int depthValue = depth[coordx + coordy * DepthWidth];
+	if (depthValue < nearThresh || depthValue > farThresh)
+	    return false;
+	else
+	    return true;*/
+
 	[allow_uav_condition]
 	for (int i = 0; i < haloSize; ++i)
 	{
@@ -97,7 +103,6 @@ void Filter(uint3 threadID : SV_DispatchThreadID)
 		}
 	}
 
-	//int colorIndex = threadID.x + threadID.y * ColorWidth;
 	int colorIndex = threadID.x;
 
 	const DepthSpacePoint dsp = depthSpaceData[colorIndex];
