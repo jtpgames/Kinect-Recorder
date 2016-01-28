@@ -101,6 +101,7 @@ namespace KinectRecorder.Multimedia
             {
                 var mediaTypeObject = availableTypes.GetElement(n);
                 mediaTypes.Add(new MF.MediaType(mediaTypeObject.NativePointer));
+
             }
             availableTypes.Dispose();
             return mediaTypes.ToArray();
@@ -145,7 +146,7 @@ namespace KinectRecorder.Multimedia
         private int streamIndex;
         public int StreamIndex => streamIndex;
 
-        public abstract Guid AudioFormat { get; protected set; }
+        public abstract Guid AudioFormat { get; }
 
         public MediaFoundationAudioWriter(MF.SinkWriter sinkWriter, ref WAVEFORMATEX waveFormat, int desiredBitRate = 192000)
         {
@@ -154,7 +155,7 @@ namespace KinectRecorder.Multimedia
             // Information on configuring an AAC media type can be found here:
             // http://msdn.microsoft.com/en-gb/library/windows/desktop/dd742785%28v=vs.85%29.aspx
             var outputMediaType = SelectMediaType(AudioFormat, sharpWf, desiredBitRate);
-            if (outputMediaType == null) throw new InvalidOperationException("No suitable AAC encoders available");
+            if (outputMediaType == null) throw new InvalidOperationException("No suitable encoders available");
 
             var inputMediaType = new MF.MediaType();
             var size = 18 + sharpWf.ExtraSize;
@@ -278,7 +279,7 @@ namespace KinectRecorder.Multimedia
             {
                 // initialize audio writer
                 var waveFormat = WAVEFORMATEX.DefaultPCM;
-                audioWriter = new AACAudioWriter(sinkWriter, ref waveFormat);
+                audioWriter = new MP3AudioWriter(sinkWriter, ref waveFormat);
             }
 
             // Start writing the video file. MUST be called before write operations.
@@ -468,7 +469,10 @@ namespace KinectRecorder.Multimedia
                 if (disposing)
                 {
                     sinkWriter.NotifyEndOfSegment(streamIndex);
-                    sinkWriter.Finalize();
+                    if (frameIndex > 0)
+                    {
+                        sinkWriter.Finalize();
+                    }
 
                     sinkWriter.Dispose();
                     sinkWriter = null;

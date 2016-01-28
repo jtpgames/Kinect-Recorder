@@ -8,9 +8,49 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 
 using KinectRecorder.Multimedia;
+using System.ComponentModel;
+using System.Linq.Expressions;
+using System.Reactive.Linq;
+using System.Reflection;
 
 namespace KinectRecorder
 {
+    public static class ObservableEx
+    {
+        public static IObservable<T> ObservableProperty<T>(Expression<Func<T>> propertyExtension)
+        {
+            if (propertyExtension == null)
+                throw new ArgumentNullException("propertyExtension");
+
+            var memberExpression = propertyExtension.Body as MemberExpression;
+
+            if (memberExpression == null)
+                throw new ArgumentException("The expression is not a member access expression.", "propertyExtension");
+
+            var member = memberExpression.Expression;
+
+            if (member == null)
+                throw new ArgumentNullException("the member is not valid", "member");
+
+            var property = memberExpression.Member as PropertyInfo;
+
+            if (property == null)
+                throw new ArgumentException("The member access expression does not access a property.", "property");
+
+            var constantExpression = (ConstantExpression)member;
+
+            if (constantExpression.Type.GetInterface("INotifyPropertyChanged") == null)
+                throw new ArgumentException("The member doesn't implement INotifyPropertyChanged interface", "constantExpression");
+
+            return Observable
+                 .FromEventPattern<PropertyChangedEventArgs>(constantExpression.Value, "PropertyChanged")
+                 .Where(prop => prop.EventArgs.PropertyName == property.Name)
+                 .Select(_ => property.GetValue(constantExpression.Value, null))
+                 .DistinctUntilChanged()
+                 .Cast<T>();
+        }
+    }
+
     static class ByteArrayExtensions
     {
         public static BitmapSource ToBgr32BitMap(this byte[] pixels)

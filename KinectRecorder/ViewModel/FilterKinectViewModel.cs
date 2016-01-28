@@ -14,6 +14,7 @@ using Microsoft.Win32;
 using KinectRecorder.Multimedia;
 
 using MF = SharpDX.MediaFoundation;
+using System.Reactive.Linq;
 
 namespace KinectRecorder.ViewModel
 {
@@ -190,6 +191,21 @@ namespace KinectRecorder.ViewModel
             }
         }
 
+        private byte[] audioFrame;
+        private byte[] AudioFrame
+        {
+            get
+            {
+                return audioFrame;
+            }
+
+            set
+            {
+                audioFrame = value;
+                RaisePropertyChanged();
+            }
+        }
+
         private bool isRunning = false;
         public bool IsRunning
         {
@@ -269,6 +285,10 @@ namespace KinectRecorder.ViewModel
 
         private ObjectFilter objectFilter;
 
+        private IDisposable ColorAndDepthSourceSubscription;
+        private IDisposable AudioSourceSubscription;
+        private IDisposable RecordingSubscription;
+
         public FilterKinectViewModel()
         {
             if (!IsInDesignMode)
@@ -305,7 +325,7 @@ namespace KinectRecorder.ViewModel
                             videoWriter.Dispose();
                         }
 
-                        videoWriter = new MP4VideoWriter(sfd.FileName, new SharpDX.Size2(1920, 1080), MF.VideoFormatGuids.Argb32);
+                        videoWriter = new MP4VideoWriter(sfd.FileName, new SharpDX.Size2(1920, 1080), MF.VideoFormatGuids.Argb32, true);
 
                         sender.Content = "Stop recording";
                         IsRecording = true;
@@ -330,6 +350,14 @@ namespace KinectRecorder.ViewModel
 
             //TestGPUFilterCommand = new RelayCommand(objectFilter.testgpu);
             TestGPUFilterCommand = new RelayCommand(() => bTestGPU = !bTestGPU);
+
+            var observableIsRecording = ObservableEx.ObservableProperty(() => IsRecording);
+
+            observableIsRecording.Subscribe(e =>
+            {
+                if (e) ActivateRecording();
+                else DeactivateRecording();
+            });
 
             sw = Stopwatch.StartNew();
         }
@@ -366,8 +394,54 @@ namespace KinectRecorder.ViewModel
                 KinectManager.Instance.PauseKinect(false);
             }
 
-            KinectManager.Instance.ColorAndDepthSourceFrameArrived += ColorAndDepthSourceFrameArrived;
+            //KinectManager.Instance.ColorAndDepthSourceFrameArrived += ColorAndDepthSourceFrameArrived;
             //KinectManager.Instance.AudioSourceFrameArrived += Reader_AudioSoureFrameArrived;
+
+            var observableColorAndDepth = Observable.FromEventPattern<MultiSourceFrameArrivedEventArgs>(KinectManager.Instance, "ColorAndDepthSourceFrameArrived");
+            var observableAudio = Observable.FromEventPattern<AudioBeamFrameArrivedEventArgs>(KinectManager.Instance, "AudioSourceFrameArrived");
+
+            ColorAndDepthSourceSubscription = observableColorAndDepth.Subscribe(
+                e => ColorAndDepthSourceFrameArrived(e.Sender, e.EventArgs)
+                );
+
+            AudioSourceSubscription = observableAudio.Subscribe(e =>
+            {
+                using (var beamFrames = e.EventArgs.FrameReference.AcquireBeamFrames())
+                {
+                    if (beamFrames == null)
+                    {
+                        return;
+                    }
+
+                    var subFrame = beamFrames[0].SubFrames[0];
+                    var audioBuffer = new byte[subFrame.FrameLengthInBytes];
+                    subFrame.CopyFrameDataToArray(audioBuffer);
+
+                    AudioFrame = audioBuffer;
+                }
+            });
+        }
+
+        private void ActivateRecording()
+        {
+            var observableFilteredImage = ObservableEx.ObservableProperty(() => FilteredVideoFrame);
+            var observableAudioFrame = ObservableEx.ObservableProperty(() => AudioFrame);
+
+            var observable = observableFilteredImage
+                .Zip(observableAudioFrame, (image, audio) => Tuple.Create(image, audio));
+
+            RecordingSubscription = observable.Subscribe(t =>
+            {
+                var pixels = new byte[KinectManager.ColorWidth * KinectManager.ColorHeight * 4];
+                ((t.Item1) as BitmapSource).CopyPixels(pixels, KinectManager.ColorWidth * 4, 0);
+
+                videoWriter.AddVideoAndAudioFrame(pixels.ToMemoryMappedTexture(), t.Item2);
+            });
+        }
+
+        private void DeactivateRecording()
+        {
+            RecordingSubscription.Dispose();
         }
 
         private void StopProcessing()
@@ -377,7 +451,10 @@ namespace KinectRecorder.ViewModel
                 KinectManager.Instance.PauseKinect();
             }
 
-            KinectManager.Instance.ColorAndDepthSourceFrameArrived -= ColorAndDepthSourceFrameArrived;
+            ColorAndDepthSourceSubscription.Dispose();
+            AudioSourceSubscription.Dispose();
+
+            //KinectManager.Instance.ColorAndDepthSourceFrameArrived -= ColorAndDepthSourceFrameArrived;
             //KinectManager.Instance.AudioSourceFrameArrived -= Reader_AudioSoureFrameArrived;
         }
 

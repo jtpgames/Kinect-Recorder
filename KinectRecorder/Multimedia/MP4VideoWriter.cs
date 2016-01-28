@@ -16,8 +16,8 @@ namespace KinectRecorder.Multimedia
 
         }
 
-        public MP4VideoWriter(string filePath, Size2 videoPixelSize, Guid videoInputFormat)
-            : base(filePath, videoPixelSize, videoInputFormat)
+        public MP4VideoWriter(string filePath, Size2 videoPixelSize, Guid videoInputFormat, bool supportAudio = false)
+            : base(filePath, videoPixelSize, videoInputFormat, supportAudio)
         {
 
         }

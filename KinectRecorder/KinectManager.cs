@@ -199,8 +199,8 @@ namespace KinectRecorder
             KStudioEventStreamSelectorCollection streamCollection = new KStudioEventStreamSelectorCollection();
             streamCollection.Add(KStudioEventStreamDataTypeIds.UncompressedColor);
             streamCollection.Add(KStudioEventStreamDataTypeIds.Depth);
-            //Guid Audio = new Guid(0x787c7abd, 0x9f6e, 0x4a85, 0x8d, 0x67, 0x63, 0x65, 0xff, 0x80, 0xcc, 0x69);
-            //streamCollection.Add(Audio);
+            Guid Audio = new Guid(0x787c7abd, 0x9f6e, 0x4a85, 0x8d, 0x67, 0x63, 0x65, 0xff, 0x80, 0xcc, 0x69);
+            streamCollection.Add(Audio);
 
             playback = client.CreatePlayback(filePath, streamCollection);
             playback.StateChanged += KStudioClient_Playback_StateChanged;

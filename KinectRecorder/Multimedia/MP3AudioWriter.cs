@@ -8,9 +8,9 @@ using MF = SharpDX.MediaFoundation;
 
 namespace KinectRecorder.Multimedia
 {
-    class AACAudioWriter : MediaFoundationAudioWriter
+    class MP3AudioWriter : MediaFoundationAudioWriter
     {
-        public AACAudioWriter(MF.SinkWriter sinkWriter, ref WAVEFORMATEX waveFormat, int desiredBitRate = 192000)
+        public MP3AudioWriter(MF.SinkWriter sinkWriter, ref WAVEFORMATEX waveFormat, int desiredBitRate = 192000) 
             : base(sinkWriter, ref waveFormat, desiredBitRate)
         {
         }
@@ -19,7 +19,7 @@ namespace KinectRecorder.Multimedia
         {
             get
             {
-                return MF.AudioFormatGuids.Aac;
+                return MF.AudioFormatGuids.Mp3;
             }
         }
     }
