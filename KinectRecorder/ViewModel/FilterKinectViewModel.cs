@@ -180,13 +180,13 @@ namespace KinectRecorder.ViewModel
                 filteredVideoFrame = value;
                 RaisePropertyChanged();
 
-                if (IsRecording && filteredVideoFrame != null)
-                {
-                    var pixels = new byte[KinectManager.ColorWidth * KinectManager.ColorHeight * 4];
-                    ((filteredVideoFrame) as BitmapSource).CopyPixels(pixels, KinectManager.ColorWidth * 4, 0);
+                //if (IsRecording && filteredVideoFrame != null)
+                //{
+                //    var pixels = new byte[KinectManager.ColorWidth * KinectManager.ColorHeight * 4];
+                //    ((filteredVideoFrame) as BitmapSource).CopyPixels(pixels, KinectManager.ColorWidth * 4, 0);
 
-                    videoWriter.AddVideoFrame(pixels.ToMemoryMappedTexture());
-                }
+                //    videoWriter.AddVideoFrame(pixels.ToMemoryMappedTexture());
+                //}
             }
         }
 
@@ -365,7 +365,9 @@ namespace KinectRecorder.ViewModel
             {
                 KinectManager.Instance.PauseKinect(false);
             }
+
             KinectManager.Instance.ColorAndDepthSourceFrameArrived += ColorAndDepthSourceFrameArrived;
+            //KinectManager.Instance.AudioSourceFrameArrived += Reader_AudioSoureFrameArrived;
         }
 
         private void StopProcessing()
@@ -374,7 +376,9 @@ namespace KinectRecorder.ViewModel
             {
                 KinectManager.Instance.PauseKinect();
             }
+
             KinectManager.Instance.ColorAndDepthSourceFrameArrived -= ColorAndDepthSourceFrameArrived;
+            //KinectManager.Instance.AudioSourceFrameArrived -= Reader_AudioSoureFrameArrived;
         }
 
         public override void Cleanup()
