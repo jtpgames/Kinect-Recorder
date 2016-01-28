@@ -8,314 +8,187 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
+using SharpDX.MediaFoundation;
 
 using MF = SharpDX.MediaFoundation;
 
 namespace KinectRecorder.Multimedia
 {
-    public unsafe class MemoryMappedTexture32bpp : IDisposable
+    struct WAVEFORMATEX
     {
-        #region The native structure, where we store all ObjectIDs uploaded from graphics hardware
-        private IntPtr m_pointer;
-        private int* m_pointerNative;
-        private Size2 m_size;
-        private int m_countInts;
-        #endregion
+        public SharpDX.Multimedia.WaveFormatEncoding wFormatTag;
+        public ushort nChannels;
+        public uint nSamplesPerSec;
+        public uint nAvgBytesPerSec;
+        public ushort nBlockAlign;
+        public ushort wBitsPerSample;
+        public ushort cbSize;
 
-        /// <summary>
-        /// Initializes a new instance of the <see cref="MemoryMappedTexture32bpp"/> class.
-        /// </summary>
-        /// <param name="size">The total size of the texture.</param>
-        public MemoryMappedTexture32bpp(Size2 size)
-        {
-            m_pointer = Marshal.AllocHGlobal(size.Width * size.Height * 4);
-            m_pointerNative = (int*)m_pointer.ToPointer();
-            m_size = size;
-            m_countInts = m_size.Width * m_size.Height;
-        }
-
-        /// <summary>
-        /// Converts the underlying buffer to a managed byte array.
-        /// </summary>
-        public byte[] ToArray()
-        {
-            byte[] result = new byte[this.SizeInBytes];
-            Marshal.Copy(m_pointer, result, 0, (int)this.SizeInBytes);
-            return result;
-        }
-
-        /// <summary>
-        /// Führt anwendungsspezifische Aufgaben aus, die mit dem Freigeben, Zurückgeben oder Zurücksetzen von nicht verwalteten Ressourcen zusammenhängen.
-        /// </summary>
-        public void Dispose()
-        {
-            Marshal.FreeHGlobal(m_pointer);
-            m_pointer = IntPtr.Zero;
-            m_pointerNative = (int*)0;
-            m_size = new Size2(0, 0);
-        }
-
-        /// <summary>
-        /// Gets the value at the given (pixel) location.
-        /// </summary>
-        /// <param name="xPos">The x position.</param>
-        /// <param name="yPos">The y position.</param>
-        public int GetValue(int xPos, int yPos)
-        {
-            return m_pointerNative[xPos + (yPos * m_size.Width)];
-        }
-
-        /// <summary>
-        /// Sets all alpha values to one.
-        /// </summary>
-        public void SetAllAlphaValuesToOne_ARGB()
-        {
-            uint alphaByteValue = 0xFF000000;
-            uint* pointerUInt = (uint*)m_pointerNative;
-            for (int loopIndex = 0; loopIndex < m_countInts; loopIndex++)
-            {
-                pointerUInt[loopIndex] |= alphaByteValue;
-            }
-        }
-
-        public void FillWith(IEnumerable<byte> data)
-        {
-            FillWith(data.ToArray());
-        }
-
-        public void FillWith(byte[] data)
-        {
-            Marshal.Copy(data, 0, m_pointer, data.Length);
-        }
-
-        /// <summary>
-        /// Gets the total size of the buffer in bytes.
-        /// </summary>
-        public uint SizeInBytes
+        public static WAVEFORMATEX DefaultPCM
         {
             get
             {
-                return (uint)(m_size.Width * m_size.Height * 4);
+                var WaveFormatEx = new WAVEFORMATEX();
+                WaveFormatEx.wFormatTag = SharpDX.Multimedia.WaveFormatEncoding.Pcm;
+                WaveFormatEx.nChannels = 1;
+                WaveFormatEx.nSamplesPerSec = 16000;
+                WaveFormatEx.wBitsPerSample = 16;
+                WaveFormatEx.nBlockAlign = (ushort)(WaveFormatEx.nChannels * WaveFormatEx.wBitsPerSample / 8);
+                WaveFormatEx.nAvgBytesPerSec = WaveFormatEx.nSamplesPerSec * WaveFormatEx.nBlockAlign;
+                WaveFormatEx.cbSize = 0;
+
+                return WaveFormatEx;
             }
         }
 
-        public int CountInts
-        {
-            get { return m_countInts; }
-        }
-
-        /// <summary>
-        /// Gets the width of the buffer.
-        /// </summary>
-        public int Width
-        {
-            get { return m_size.Width; }
-        }
-
-        /// <summary>
-        /// Gets the pitch of the underlying texture data.
-        /// (pitch = stride, see https://msdn.microsoft.com/en-us/library/windows/desktop/aa473780(v=vs.85).aspx )
-        /// </summary>
-        public int Pitch
-        {
-            get { return m_size.Width * 4; }
-        }
-
-        /// <summary>
-        /// Gets the pitch of the underlying texture data.
-        /// (pitch = stride, see https://msdn.microsoft.com/en-us/library/windows/desktop/aa473780(v=vs.85).aspx )
-        /// </summary>
-        public int Stride
-        {
-            get { return m_size.Width * 4; }
-        }
-
-        /// <summary>
-        /// Gets the height of the buffer.
-        /// </summary>
-        public int Height
-        {
-            get { return m_size.Height; }
-        }
-
-        /// <summary>
-        /// Gets the pixel size of this texture.
-        /// </summary>
-        public Size2 PixelSize
+        public static WAVEFORMATEX DefaultIEEE
         {
             get
             {
-                return m_size;
+                var WaveFormatEx = new WAVEFORMATEX();
+                WaveFormatEx.wFormatTag = SharpDX.Multimedia.WaveFormatEncoding.IeeeFloat;
+                WaveFormatEx.nChannels = 1;
+                WaveFormatEx.nSamplesPerSec = 16000;
+                WaveFormatEx.wBitsPerSample = 32;
+                WaveFormatEx.nBlockAlign = (ushort)(WaveFormatEx.nChannels * WaveFormatEx.wBitsPerSample / 8);
+                WaveFormatEx.nAvgBytesPerSec = WaveFormatEx.nSamplesPerSec * WaveFormatEx.nBlockAlign;
+                WaveFormatEx.cbSize = 0;
+
+                return WaveFormatEx;
             }
         }
 
-        /// <summary>
-        /// Gets the pointer of the buffer.
-        /// </summary>
-        public IntPtr Pointer
+        public SharpDX.Multimedia.WaveFormat ToSharpDX()
         {
-            get
-            {
-                if (m_pointer == IntPtr.Zero) { throw new ObjectDisposedException("MemoryMappedTextureFloat"); }
-                return m_pointer;
-            }
+            return SharpDX.Multimedia.WaveFormat.CreateCustomFormat(
+                wFormatTag,
+                (int)nSamplesPerSec,
+                nChannels,
+                (int)nAvgBytesPerSec,
+                nBlockAlign,
+                wBitsPerSample
+            );
         }
     }
 
-    /// <summary>
-    /// A helper class containing utility methods used when working with Media Foundation.
-    /// Source: https://github.com/RolandKoenig/SeeingSharp/blob/master/SeeingSharp.Multimedia/Core/_Util/MFHelper.cs
-    /// </summary>
-    internal class MFHelper
+    abstract class MediaFoundationAudioWriter
     {
         /// <summary>
-        /// Gets the Guid from the given type.
+        /// Gets all the available media types for a particular 
         /// </summary>
-        /// <typeparam name="T">The type to get the guid from.</typeparam>
-        internal static Guid GetGuidOf<T>()
+        /// <param name="audioSubtype">Audio subtype - a value from the AudioSubtypes class</param>
+        /// <returns>An array of available media types that can be encoded with this subtype</returns>
+        public static MF.MediaType[] GetOutputMediaTypes(Guid audioSubtype)
         {
-            GuidAttribute guidAttribute = typeof(T).GetTypeInfo().GetCustomAttribute<GuidAttribute>();
-            if (guidAttribute == null)
+            MF.Collection availableTypes;
+            try
             {
-                throw new Exception(string.Format("No Guid found on type {0}!", typeof(T).FullName));
+                availableTypes = MF.MediaFactory.TranscodeGetAudioOutputAvailableTypes(audioSubtype, MF.TransformEnumFlag.All, null);
+            }
+            catch (SharpDXException c)
+            {
+                if (c.ResultCode.Code == MF.ResultCode.NotFound.Code)
+                {
+                    // Don't worry if we didn't find any - just means no encoder available for this type
+                    return new MF.MediaType[0];
+                }
+                throw;
             }
 
-            return new Guid(guidAttribute.Value);
-        }
-
-        /// <summary>
-        /// Builds a Guid for a video subtype for the given format id (see MFRawFormats).
-        /// </summary>
-        /// <param name="rawFormatID">The raw format id.</param>
-        internal static Guid BuildVideoSubtypeGuid(int rawFormatID)
-        {
-            return new Guid(
-                rawFormatID,
-                0x0000, 0x0010, 0x80, 0x00, 0x00, 0xaa, 0x00, 0x38, 0x9b, 0x71);
-        }
-
-        /// <summary>
-        /// Helper function that builds the Guid for a video subtype using the given FOURCC value
-        /// </summary>
-        /// <param name="fourCCString">The FOURCC string to convert to a guid.</param>
-        internal static Guid BuildVideoSubtypeGuid(string fourCCString)
-        {
-            return new Guid(
-                GetFourCCValue(fourCCString),
-                0x0000, 0x0010, 0x80, 0x00, 0x00, 0xaa, 0x00, 0x38, 0x9b, 0x71);
-        }
-
-        /// <summary>
-        /// Gets the FourCC value for the given string.
-        /// More infos about FourCC:
-        ///  see: http://msdn.microsoft.com/en-us/library/windows/desktop/bb970509(v=vs.85).aspx,
-        ///  see: http://msdn.microsoft.com/en-us/library/windows/desktop/aa370819(v=vs.85).aspx#creating_subtype_guids_from_fourccs_and_d3dformat_values,
-        ///  see: http://de.wikipedia.org/wiki/FourCC
-        /// </summary>
-        /// <param name="fourCCString">The FourCC string to be converted into an unsigned integer value.</param>
-#if DESKTOP
-        internal static uint GetFourCCValue(string fourCCString)
-#else
-        internal static int GetFourCCValue(string fourCCString)
-#endif
-        {
-            if (string.IsNullOrEmpty(fourCCString)) { throw new ArgumentNullException("subtype"); }
-            if (fourCCString.Length > 4) { throw new ArgumentException("Given value too long!"); }
-
-            // Build fcc value
-            byte[] asciiBytes = Encoding.UTF8.GetBytes(fourCCString);
-            byte[] fccValueBytes = new byte[4];
-            for (int loop = 0; loop < 4; loop++)
+            int count = availableTypes.ElementCount;
+            var mediaTypes = new List<MF.MediaType>(count);
+            for (int n = 0; n < count; n++)
             {
-                if (asciiBytes.Length > loop) { fccValueBytes[loop] = asciiBytes[loop]; }
-                else { fccValueBytes[loop] = 0x20; }
+                var mediaTypeObject = availableTypes.GetElement(n);
+                mediaTypes.Add(new MF.MediaType(mediaTypeObject.NativePointer));
+            }
+            availableTypes.Dispose();
+            return mediaTypes.ToArray();
+        }
+
+        /// <summary>
+        /// Queries the available bitrates for a given encoding output type, sample rate and number of channels
+        /// </summary>
+        /// <param name="audioSubtype">Audio subtype - a value from the AudioSubtypes class</param>
+        /// <param name="sampleRate">The sample rate of the PCM to encode</param>
+        /// <param name="channels">The number of channels of the PCM to encode</param>
+        /// <returns>An array of available bitrates in average bits per second</returns>
+        public static int[] GetEncodeBitrates(Guid audioSubtype, int sampleRate, int channels)
+        {
+            return GetOutputMediaTypes(audioSubtype)
+                .Where(mt => mt.Get(MF.MediaTypeAttributeKeys.AudioSamplesPerSecond) == sampleRate &&
+                    mt.Get(MF.MediaTypeAttributeKeys.AudioNumChannels) == channels)
+                .Select(mt => mt.Get(MF.MediaTypeAttributeKeys.AudioAvgBytesPerSecond) * 8)
+                .Distinct()
+                .OrderBy(br => br)
+                .ToArray();
+        }
+
+        /// <summary>
+        /// Tries to find the encoding media type with the closest bitrate to that specified
+        /// </summary>
+        /// <param name="audioSubtype">Audio subtype, a value from AudioSubtypes</param>
+        /// <param name="inputFormat">Your encoder input format (used to check sample rate and channel count)</param>
+        /// <param name="desiredBitRate">Your desired bitrate</param>
+        /// <returns>The closest media type, or null if none available</returns>
+        public static MF.MediaType SelectMediaType(Guid audioSubtype, SharpDX.Multimedia.WaveFormat inputFormat, int desiredBitRate)
+        {
+            return GetOutputMediaTypes(audioSubtype)
+                .Where(mt => mt.Get(MF.MediaTypeAttributeKeys.AudioSamplesPerSecond) == inputFormat.SampleRate &&
+                    mt.Get(MF.MediaTypeAttributeKeys.AudioNumChannels) == inputFormat.Channels)
+                .Select(mt => new { MediaType = mt, Delta = Math.Abs(desiredBitRate - mt.Get(MF.MediaTypeAttributeKeys.AudioAvgBytesPerSecond) * 8) })
+                .OrderBy(mt => mt.Delta)
+                .Select(mt => mt.MediaType)
+                .FirstOrDefault();
+        }
+
+        private int streamIndex;
+        public int StreamIndex => streamIndex;
+
+        public abstract Guid AudioFormat { get; protected set; }
+
+        public MediaFoundationAudioWriter(MF.SinkWriter sinkWriter, ref WAVEFORMATEX waveFormat, int desiredBitRate = 192000)
+        {
+            var sharpWf = waveFormat.ToSharpDX();
+
+            // Information on configuring an AAC media type can be found here:
+            // http://msdn.microsoft.com/en-gb/library/windows/desktop/dd742785%28v=vs.85%29.aspx
+            var outputMediaType = SelectMediaType(AudioFormat, sharpWf, desiredBitRate);
+            if (outputMediaType == null) throw new InvalidOperationException("No suitable AAC encoders available");
+
+            var inputMediaType = new MF.MediaType();
+            var size = 18 + sharpWf.ExtraSize;
+
+            sinkWriter.AddStream(outputMediaType, out streamIndex);
+
+            MF.MediaFactory.InitMediaTypeFromWaveFormatEx(inputMediaType, new[] { sharpWf }, size);
+            sinkWriter.SetInputMediaType(streamIndex, inputMediaType, null);
+        }
+
+        public MF.Sample CreateSampleFromFrame(byte[] data)
+        {
+            MF.MediaBuffer mediaBuffer = MF.MediaFactory.CreateMemoryBuffer(data.Length);
+
+            // Write all contents to the MediaBuffer for media foundation
+            int cbMaxLength = 0;
+            int cbCurrentLength = 0;
+            IntPtr mediaBufferPointer = mediaBuffer.Lock(out cbMaxLength, out cbCurrentLength);
+            try
+            {
+
+                Marshal.Copy(data, 0, mediaBufferPointer, data.Length);
+            }
+            finally
+            {
+                mediaBuffer.Unlock();
+                mediaBuffer.CurrentLength = data.Length;
             }
 
-            // Return guid
-#if DESKTOP
-            return BitConverter.ToUInt32(fccValueBytes, 0);
-#else 
-            return BitConverter.ToInt32(fccValueBytes, 0);
-#endif
-        }
+            // Create the sample (includes image and timing information)
+            MF.Sample sample = MF.MediaFactory.CreateSample();
+            sample.AddBuffer(mediaBuffer);
 
-        /// <summary>
-        /// Encodes the given values to a single long.
-        /// Example usage: Size attribute.
-        /// </summary>
-        /// <param name="valueA">The first value.</param>
-        /// <param name="valueB">The second value.</param>
-        internal static long GetMFEncodedIntsByValues(int valueA, int valueB)
-        {
-            byte[] valueXBytes = BitConverter.GetBytes(valueA);
-            byte[] valueYBytes = BitConverter.GetBytes(valueB);
-
-            byte[] resultBytes = new byte[8];
-            if (BitConverter.IsLittleEndian)
-            {
-                resultBytes[0] = valueYBytes[0];
-                resultBytes[1] = valueYBytes[1];
-                resultBytes[2] = valueYBytes[2];
-                resultBytes[3] = valueYBytes[3];
-                resultBytes[4] = valueXBytes[0];
-                resultBytes[5] = valueXBytes[1];
-                resultBytes[6] = valueXBytes[2];
-                resultBytes[7] = valueXBytes[3];
-            }
-            else
-            {
-                resultBytes[0] = valueXBytes[0];
-                resultBytes[1] = valueXBytes[1];
-                resultBytes[2] = valueXBytes[2];
-                resultBytes[3] = valueXBytes[3];
-                resultBytes[4] = valueYBytes[0];
-                resultBytes[5] = valueYBytes[1];
-                resultBytes[6] = valueYBytes[2];
-                resultBytes[7] = valueYBytes[3];
-            }
-
-            return BitConverter.ToInt64(resultBytes, 0);
-        }
-
-        /// <summary>
-        /// Decodes two integer values from the given long.
-        /// Example usage: Size attribute.
-        /// </summary>
-        /// <param name="encodedInts">The long containing both encoded ints.</param>
-        internal static Tuple<int, int> GetValuesByMFEncodedInts(long encodedInts)
-        {
-            byte[] rawBytes = BitConverter.GetBytes(encodedInts);
-
-            if (BitConverter.IsLittleEndian)
-            {
-                return Tuple.Create(
-                    BitConverter.ToInt32(rawBytes, 4),
-                    BitConverter.ToInt32(rawBytes, 0));
-            }
-            else
-            {
-                return Tuple.Create(
-                    BitConverter.ToInt32(rawBytes, 0),
-                    BitConverter.ToInt32(rawBytes, 4));
-            }
-        }
-
-        /// <summary>
-        /// Converts the given duration value from media foundation to a TimeSpan structure.
-        /// </summary>
-        /// <param name="durationLong">The duration value.</param>
-        internal static TimeSpan DurationLongToTimeSpan(long durationLong)
-        {
-            return TimeSpan.FromMilliseconds(durationLong / 10000);
-        }
-
-        /// <summary>
-        /// Converts the given TimeSpan value to a duration value for media foundation
-        /// </summary>
-        /// <param name="timespan">The timespan.</param>
-        internal static long TimeSpanToDurationLong(TimeSpan timespan)
-        {
-            return (long)(timespan.TotalMilliseconds * 10000);
+            return sample;
         }
     }
 
@@ -339,20 +212,49 @@ namespace KinectRecorder.Multimedia
         private int streamIndex;
         #endregion
 
+        public int StreamIndex => streamIndex;
+
+        public MF.SinkWriter SinkWriter => sinkWriter;
+
+        private MediaFoundationAudioWriter audioWriter;
+
+        private static SinkWriter CreateSinkWriter(string outputFile)
+        {
+            SinkWriter writer;
+            using (var attributes = new MediaAttributes())
+            {
+                MediaFactory.CreateAttributes(attributes, 1);
+                attributes.Set(SinkWriterAttributeKeys.ReadwriteEnableHardwareTransforms.Guid, (UInt32)1);
+                try
+                {
+                    writer = MediaFactory.CreateSinkWriterFromURL(outputFile, IntPtr.Zero, attributes);
+                }
+                catch (COMException e)
+                {
+                    if (e.ErrorCode == unchecked((int)0xC00D36D5))
+                    {
+                        throw new ArgumentException("Was not able to create a sink writer for this file extension");
+                    }
+                    throw;
+                }
+            }
+            return writer;
+        }
+
         public MediaFoundationVideoWriter(string filePath, Size2 videoPixelSize)
             : this(filePath, videoPixelSize, VIDEO_INPUT_FORMAT)
         {
 
         }
 
-        public MediaFoundationVideoWriter(string filePath, Size2 videoPixelSize, Guid videoInputFormat)
+        public MediaFoundationVideoWriter(string filePath, Size2 videoPixelSize, Guid videoInputFormat, bool supportAudio = false)
         {
             bitrate = 1500000;
             framerate = 15;
 
             if (!MFInitialized)
             {
-                // Initialize MF library
+                // Initialize MF library. MUST be called before any MF related operations.
                 MF.MediaFactory.Startup(MF.MediaFactory.Version, 0);
             }
 
@@ -372,23 +274,28 @@ namespace KinectRecorder.Multimedia
                 sinkWriter.SetInputMediaType(streamIndex, mediaTypeIn, null);
             }
 
-            // Start writing the video file
+            if (supportAudio)
+            {
+                // initialize audio writer
+                var waveFormat = WAVEFORMATEX.DefaultPCM;
+                audioWriter = new AACAudioWriter(sinkWriter, ref waveFormat);
+            }
+
+            // Start writing the video file. MUST be called before write operations.
             sinkWriter.BeginWriting();
 
             // Set initial frame index
             frameIndex = -1;
         }
 
-        public void AddFrame(MemoryMappedTexture32bpp texture)
+        public MF.Sample CreateSampleFromFrame(MemoryMappedTexture32bpp frame)
         {
-            frameIndex++;
-            MF.MediaBuffer mediaBuffer = MF.MediaFactory.CreateMemoryBuffer((int)texture.SizeInBytes);
+            MF.MediaBuffer mediaBuffer = MF.MediaFactory.CreateMemoryBuffer((int)frame.SizeInBytes);
 
             // Write all contents to the MediaBuffer for media foundation
             int cbMaxLength = 0;
             int cbCurrentLength = 0;
             IntPtr mediaBufferPointer = mediaBuffer.Lock(out cbMaxLength, out cbCurrentLength);
-
             try
             {
                 if (FlipY)
@@ -397,7 +304,7 @@ namespace KinectRecorder.Multimedia
                     {
                         int stride = videoPixelSize.Width;
                         int* mediaBufferPointerNative = (int*)mediaBufferPointer.ToPointer();
-                        int* targetBufferPointerNative = (int*)texture.Pointer.ToPointer();
+                        int* targetBufferPointerNative = (int*)frame.Pointer.ToPointer();
                         for (int loopY = 0; loopY < videoPixelSize.Height; loopY++)
                         {
                             for (int loopX = 0; loopX < videoPixelSize.Width; loopX++)
@@ -415,7 +322,7 @@ namespace KinectRecorder.Multimedia
                     {
                         int stride = videoPixelSize.Width;
                         int* mediaBufferPointerNative = (int*)mediaBufferPointer.ToPointer();
-                        int* targetBufferPointerNative = (int*)texture.Pointer.ToPointer();
+                        int* targetBufferPointerNative = (int*)frame.Pointer.ToPointer();
                         for (int loopY = 0; loopY < videoPixelSize.Height; loopY++)
                         {
                             for (int loopX = 0; loopX < videoPixelSize.Width; loopX++)
@@ -430,17 +337,27 @@ namespace KinectRecorder.Multimedia
             finally
             {
                 mediaBuffer.Unlock();
-                mediaBuffer.CurrentLength = (int)texture.SizeInBytes;
+                mediaBuffer.CurrentLength = (int)frame.SizeInBytes;
             }
-
 
             // Create the sample (includes image and timing information)
             MF.Sample sample = MF.MediaFactory.CreateSample();
+            sample.AddBuffer(mediaBuffer);
+
+            return sample;
+        }
+
+        public void AddVideoFrame(MemoryMappedTexture32bpp texture)
+        {
+            ++frameIndex;
+
+            // Create the sample (includes image and timing information)
+            MF.Sample sample = CreateSampleFromFrame(texture);
             try
             {
-                sample.AddBuffer(mediaBuffer);
-
-                long frameDuration = 10 * 1000 * 1000 / framerate;
+                //long frameDuration = 10 * 1000 * 1000 / framerate;
+                long frameDuration;
+                MF.MediaFactory.FrameRateToAverageTimePerFrame(framerate, 1, out frameDuration);
                 sample.SampleTime = frameDuration * frameIndex;
                 sample.SampleDuration = frameDuration;
 
@@ -455,7 +372,56 @@ namespace KinectRecorder.Multimedia
                 sample.Dispose();
             }
 
-            mediaBuffer.Dispose();
+            //mediaBuffer.Dispose();
+        }
+
+        public void AddVideoAndAudioFrame(MemoryMappedTexture32bpp frame, byte[] audioFrame)
+        {
+            Debug.Assert(frame != null && frame.SizeInBytes != 0
+                && audioFrame != null && audioFrame.Length != 0);
+
+            var videoSample = CreateSampleFromFrame(frame);
+            var audioSample = audioWriter.CreateSampleFromFrame(audioFrame);
+            try
+            {
+
+                var samples = new Dictionary<int, Sample>();
+                samples.Add(StreamIndex, videoSample);
+                samples.Add(audioWriter.StreamIndex, audioSample);
+
+                WriteSamples(samples);
+            }
+            finally
+            {
+                videoSample.Dispose();
+                audioSample.Dispose();
+            }
+        }
+
+        private void WriteSamples(Dictionary<int, Sample> samples)
+        {
+            ++frameIndex;
+
+            long frameDuration;
+            MediaFactory.FrameRateToAverageTimePerFrame(framerate, 1, out frameDuration);
+
+            try
+            {
+                foreach (var item in samples)
+                {
+                    var streamIndex = item.Key;
+                    var sample = item.Value;
+
+                    sample.SampleTime = frameDuration * frameIndex;
+                    sample.SampleDuration = frameDuration;
+
+                    sinkWriter.WriteSample(streamIndex, sample);
+                }
+            }
+            catch (SharpDXException e)
+            {
+                Debug.WriteLine(e.Message);
+            }
         }
 
         /// <summary>
@@ -476,10 +442,10 @@ namespace KinectRecorder.Multimedia
 
         public int Bitrate
         {
-            get { return bitrate / 1000; ; }
+            get { return bitrate; }
             set
             {
-                bitrate = value * 1000;
+                bitrate = value;
             }
         }
 

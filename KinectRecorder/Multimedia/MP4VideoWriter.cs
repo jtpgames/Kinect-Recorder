@@ -28,7 +28,7 @@ namespace KinectRecorder.Multimedia
             {
                 mediaTypeOut.Set<Guid>(MF.MediaTypeAttributeKeys.MajorType, MF.MediaTypeGuids.Video);
                 mediaTypeOut.Set<Guid>(MF.MediaTypeAttributeKeys.Subtype, VIDEO_ENCODING_FORMAT);
-                mediaTypeOut.Set<int>(MF.MediaTypeAttributeKeys.AvgBitrate, Bitrate * 1000);
+                mediaTypeOut.Set<int>(MF.MediaTypeAttributeKeys.AvgBitrate, Bitrate);
                 mediaTypeOut.Set<int>(MF.MediaTypeAttributeKeys.InterlaceMode, (int)MF.VideoInterlaceMode.Progressive);
                 mediaTypeOut.Set<long>(MF.MediaTypeAttributeKeys.FrameSize, MFHelper.GetMFEncodedIntsByValues(videoPixelSize.Width, videoPixelSize.Height));
                 mediaTypeOut.Set<long>(MF.MediaTypeAttributeKeys.FrameRate, MFHelper.GetMFEncodedIntsByValues(Framerate, 1));

@@ -185,7 +185,7 @@ namespace KinectRecorder.ViewModel
                     var pixels = new byte[KinectManager.ColorWidth * KinectManager.ColorHeight * 4];
                     ((filteredVideoFrame) as BitmapSource).CopyPixels(pixels, KinectManager.ColorWidth * 4, 0);
 
-                    videoWriter.AddFrame(pixels.ToMemoryMappedTexture());
+                    videoWriter.AddVideoFrame(pixels.ToMemoryMappedTexture());
                 }
             }
         }
