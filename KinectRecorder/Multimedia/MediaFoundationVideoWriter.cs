@@ -32,7 +32,7 @@ namespace KinectRecorder.Multimedia
                 WaveFormatEx.wFormatTag = SharpDX.Multimedia.WaveFormatEncoding.Pcm;
                 WaveFormatEx.nChannels = 1;
                 WaveFormatEx.nSamplesPerSec = 16000;
-                WaveFormatEx.wBitsPerSample = 16;
+                WaveFormatEx.wBitsPerSample = 32;
                 WaveFormatEx.nBlockAlign = (ushort)(WaveFormatEx.nChannels * WaveFormatEx.wBitsPerSample / 8);
                 WaveFormatEx.nAvgBytesPerSec = WaveFormatEx.nSamplesPerSec * WaveFormatEx.nBlockAlign;
                 WaveFormatEx.cbSize = 0;
@@ -251,7 +251,7 @@ namespace KinectRecorder.Multimedia
         public MediaFoundationVideoWriter(string filePath, Size2 videoPixelSize, Guid videoInputFormat, bool supportAudio = false)
         {
             bitrate = 1500000;
-            framerate = 15;
+            framerate = 25;
 
             if (!MFInitialized)
             {

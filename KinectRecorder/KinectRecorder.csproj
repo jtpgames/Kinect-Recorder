@@ -138,6 +138,7 @@
     <Compile Include="ViewModel\FilterKinectViewModel.cs" />
     <Compile Include="ViewModel\MainViewModel.cs" />
     <Compile Include="ViewModel\ViewModelLocator.cs" />
+    <Compile Include="Multimedia\WaveFile.cs" />
     <Page Include="FilterKinectControl.xaml">
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>

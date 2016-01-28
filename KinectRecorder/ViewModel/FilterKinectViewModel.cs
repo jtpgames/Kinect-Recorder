@@ -15,6 +15,8 @@ using KinectRecorder.Multimedia;
 
 using MF = SharpDX.MediaFoundation;
 using System.Reactive.Linq;
+using System.IO;
+using System.Threading;
 
 namespace KinectRecorder.ViewModel
 {
@@ -271,6 +273,7 @@ namespace KinectRecorder.ViewModel
         public RelayCommand TestGPUFilterCommand { get; private set; }
 
         private MediaFoundationVideoWriter videoWriter;
+        private WaveFile debugWaveFile;
 
         private bool bTestGPU = false;
 
@@ -327,6 +330,9 @@ namespace KinectRecorder.ViewModel
 
                         videoWriter = new MP4VideoWriter(sfd.FileName, new SharpDX.Size2(1920, 1080), MF.VideoFormatGuids.Argb32, true);
 
+                        debugWaveFile = new WaveFile(WAVEFORMATEX.DefaultPCM);
+                        debugWaveFile.Open(Path.Combine(Path.GetDirectoryName(sfd.FileName), Path.GetFileNameWithoutExtension(sfd.FileName)) + ".wav");
+
                         sender.Content = "Stop recording";
                         IsRecording = true;
                     }
@@ -338,6 +344,8 @@ namespace KinectRecorder.ViewModel
                         videoWriter.Dispose();
                         videoWriter = null;
                     }
+
+                    debugWaveFile.Close();
 
                     sender.Content = "Record";
                     IsRecording = false;
@@ -394,9 +402,6 @@ namespace KinectRecorder.ViewModel
                 KinectManager.Instance.PauseKinect(false);
             }
 
-            //KinectManager.Instance.ColorAndDepthSourceFrameArrived += ColorAndDepthSourceFrameArrived;
-            //KinectManager.Instance.AudioSourceFrameArrived += Reader_AudioSoureFrameArrived;
-
             var observableColorAndDepth = Observable.FromEventPattern<MultiSourceFrameArrivedEventArgs>(KinectManager.Instance, "ColorAndDepthSourceFrameArrived");
             var observableAudio = Observable.FromEventPattern<AudioBeamFrameArrivedEventArgs>(KinectManager.Instance, "AudioSourceFrameArrived");
 
@@ -413,6 +418,8 @@ namespace KinectRecorder.ViewModel
                         return;
                     }
 
+                    Debug.WriteLine("AudioSourceSubscription " + Thread.CurrentThread.ManagedThreadId);
+
                     var subFrame = beamFrames[0].SubFrames[0];
                     var audioBuffer = new byte[subFrame.FrameLengthInBytes];
                     subFrame.CopyFrameDataToArray(audioBuffer);
@@ -424,18 +431,27 @@ namespace KinectRecorder.ViewModel
 
         private void ActivateRecording()
         {
-            var observableFilteredImage = ObservableEx.ObservableProperty(() => FilteredVideoFrame);
+            var observableFilteredImage = ObservableEx.ObservableProperty(() => FilteredVideoFrame)
+                .Select(img =>
+                {
+                    var pixels = new byte[KinectManager.ColorWidth * KinectManager.ColorHeight * 4];
+                    ((img) as BitmapSource).CopyPixels(pixels, KinectManager.ColorWidth * 4, 0);
+
+                    return pixels;
+                });
             var observableAudioFrame = ObservableEx.ObservableProperty(() => AudioFrame);
 
             var observable = observableFilteredImage
                 .Zip(observableAudioFrame, (image, audio) => Tuple.Create(image, audio));
 
-            RecordingSubscription = observable.Subscribe(t =>
+            RecordingSubscription = observable
+                .Subscribe(t =>
             {
-                var pixels = new byte[KinectManager.ColorWidth * KinectManager.ColorHeight * 4];
-                ((t.Item1) as BitmapSource).CopyPixels(pixels, KinectManager.ColorWidth * 4, 0);
+                Debug.WriteLine("RecordingSubscription " + Thread.CurrentThread.ManagedThreadId);
 
-                videoWriter.AddVideoAndAudioFrame(pixels.ToMemoryMappedTexture(), t.Item2);
+                debugWaveFile.Write(t.Item2);
+
+                videoWriter.AddVideoAndAudioFrame(t.Item1.ToMemoryMappedTexture(), t.Item2);
             });
         }
 
@@ -453,9 +469,6 @@ namespace KinectRecorder.ViewModel
 
             ColorAndDepthSourceSubscription.Dispose();
             AudioSourceSubscription.Dispose();
-
-            //KinectManager.Instance.ColorAndDepthSourceFrameArrived -= ColorAndDepthSourceFrameArrived;
-            //KinectManager.Instance.AudioSourceFrameArrived -= Reader_AudioSoureFrameArrived;
         }
 
         public override void Cleanup()
@@ -469,6 +482,8 @@ namespace KinectRecorder.ViewModel
 
         private async void ColorAndDepthSourceFrameArrived(object sender, MultiSourceFrameArrivedEventArgs e)
         {
+            Debug.WriteLine("ColorAndDepthSourceFrameArrived " + Thread.CurrentThread.ManagedThreadId);
+
             // Get a reference to the multi-frame
             var reference = e.FrameReference.AcquireFrame();
 
