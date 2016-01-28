@@ -140,6 +140,8 @@ namespace KinectRecorder
 
                     _audioReader = _sensor.AudioSource.OpenReader();
 
+                    System.Diagnostics.Debug.WriteLine("SubFrameLenght" + _sensor.AudioSource.SubFrameLengthInBytes);
+
                     _multireader.MultiSourceFrameArrived += OnMultiSourceFrameArrived;
 
                     _colordepthReader.MultiSourceFrameArrived += OnColorAndDepthSourceFrameArrived;
