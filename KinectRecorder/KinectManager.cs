@@ -164,6 +164,11 @@ namespace KinectRecorder
 
         #region Public methods
 
+        public AudioBeamFrameList PollAudio()
+        {
+            return _audioReader.AcquireLatestBeamFrames();
+        }
+
         /// <summary>
         /// Set up a custom multi source reader who is serving the given frameSourceTypes.
         /// 
