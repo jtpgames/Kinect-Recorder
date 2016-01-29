@@ -53,7 +53,11 @@ namespace KinectRecorder.ViewModel
         
         public static void Cleanup()
         {
-            // TODO Clear the ViewModels
+            ServiceLocator.Current.GetInstance<MainViewModel>().Cleanup();
+            ServiceLocator.Current.GetInstance<FilterKinectViewModel>().Cleanup();
+
+            SimpleIoc.Default.Unregister<MainViewModel>();
+            SimpleIoc.Default.Unregister<FilterKinectViewModel>();
         }
     }
 }

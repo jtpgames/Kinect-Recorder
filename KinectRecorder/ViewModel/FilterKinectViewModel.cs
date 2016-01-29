@@ -479,8 +479,8 @@ namespace KinectRecorder.ViewModel
                 KinectManager.Instance.PauseKinect();
             }
 
-            ColorAndDepthSourceSubscription.Dispose();
-            AudioSourceSubscription.Dispose();
+            ColorAndDepthSourceSubscription.SafeDispose();
+            AudioSourceSubscription.SafeDispose();
         }
 
         public override void Cleanup()

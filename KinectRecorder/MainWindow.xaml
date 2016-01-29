@@ -8,7 +8,8 @@
         mc:Ignorable="d"
         Title="MainWindow"
         Height="576"
-        Width="1024">
+        Width="1024"
+        Closed="window_Closed">
     <DockPanel DataContext="{Binding Source={StaticResource Locator}}">
         <Menu DockPanel.Dock="Top">
             <MenuItem Header="_File">

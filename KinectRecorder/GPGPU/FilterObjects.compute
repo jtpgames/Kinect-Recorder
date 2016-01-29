@@ -23,36 +23,6 @@ static const uint ColorSize = 1920 * 1080;
 static const uint DepthWidth = 512;
 static const uint DepthHeight = 424;
 
-int4 readPixel(RWStructuredBuffer<int4> buffer, int x, int y)
-{
-	int4 output;
-	uint index = (x + y * ColorWidth);
-
-	output = buffer[index];
-
-	return output;
-}
-
-uint readPixel(RWStructuredBuffer<uint> buffer, int x, int y)
-{
-	uint output;
-	uint index = (x + y * ColorWidth);
-
-	output = buffer[index];
-
-	return output;
-}
-
-DepthSpacePoint readPixel(RWStructuredBuffer<DepthSpacePoint> buffer, int x, int y)
-{
-	DepthSpacePoint output;
-	uint index = (x + y * ColorWidth);
-
-	output = buffer[index];
-
-	return output;
-}
-
 bool allDepthsValidWithinHalo(const int coordx, const int coordy)
 {
 	/*int depthValue = depth[coordx + coordy * DepthWidth];

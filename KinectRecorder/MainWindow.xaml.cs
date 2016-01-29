@@ -24,5 +24,10 @@ namespace KinectRecorder
         {
             InitializeComponent();
         }
+
+        private void window_Closed(object sender, EventArgs e)
+        {
+            ViewModel.ViewModelLocator.Cleanup();
+        }
     }
 }
