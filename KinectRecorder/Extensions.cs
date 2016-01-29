@@ -15,7 +15,35 @@ using System.Reflection;
 
 namespace KinectRecorder
 {
-    public static class ObservableEx
+    interface IDisposed : IDisposable
+    {
+        bool Disposed { get; }
+    }
+
+    static class IDisposableEx
+    {
+        /// <summary>
+        /// Call the dispose method if the object is not null
+        /// </summary>
+        /// <param name="obj"></param>
+        public static void SafeDispose(this IDisposable obj)
+        {
+            if (obj != null)
+                obj.Dispose();
+        }
+
+        /// <summary>
+        /// Call the dispose method if the object is not null and was not already disposed
+        /// </summary>
+        /// <param name="obj"></param>
+        public static void SafeDispose(this IDisposed obj)
+        {
+            if (obj != null && !obj.Disposed)
+                obj.Dispose();
+        }
+    }
+
+    static class ObservableEx
     {
         public static IObservable<T> ObservableProperty<T>(Expression<Func<T>> propertyExtension)
         {

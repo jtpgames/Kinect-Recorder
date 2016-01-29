@@ -180,6 +180,8 @@ namespace KinectRecorder.ViewModel
 
             set
             {
+                ++videoSamples;
+
                 filteredVideoFrame = value;
                 RaisePropertyChanged();
 
@@ -203,6 +205,8 @@ namespace KinectRecorder.ViewModel
 
             set
             {
+                ++audioSamples;
+
                 audioFrame = value;
                 RaisePropertyChanged();
             }
@@ -292,6 +296,10 @@ namespace KinectRecorder.ViewModel
         private IDisposable AudioSourceSubscription;
         private IDisposable RecordingSubscription;
 
+        private int audioSamples = 0;
+        private int videoSamples = 0;
+        private int samplesWritten = 0;
+
         public FilterKinectViewModel()
         {
             if (!IsInDesignMode)
@@ -310,8 +318,8 @@ namespace KinectRecorder.ViewModel
             NearThreshold = 1589;
             FarThreshold = 1903;
 
-            objectFilter = new ObjectFilter();
-            //objectFilter = ObjectFilter.CreateObjectFilterWithGPUSupport();
+            //objectFilter = new ObjectFilter();
+            objectFilter = ObjectFilter.CreateObjectFilterWithGPUSupport();
 
             ToggleRecordingCommand = new RelayCommand<System.Windows.Controls.Button>(sender =>
             {
@@ -418,8 +426,6 @@ namespace KinectRecorder.ViewModel
                         return;
                     }
 
-                    Debug.WriteLine("AudioSourceSubscription " + Thread.CurrentThread.ManagedThreadId);
-
                     var subFrame = beamFrames[0].SubFrames[0];
                     var audioBuffer = new byte[subFrame.FrameLengthInBytes];
                     subFrame.CopyFrameDataToArray(audioBuffer);
@@ -447,7 +453,11 @@ namespace KinectRecorder.ViewModel
             RecordingSubscription = observable
                 .Subscribe(t =>
             {
-                Debug.WriteLine("RecordingSubscription " + Thread.CurrentThread.ManagedThreadId);
+                Debug.WriteLine($"Video: {videoSamples}, Audio: {audioSamples}");
+
+                --audioSamples;
+                --videoSamples;
+                ++samplesWritten;
 
                 debugWaveFile.Write(t.Item2);
 
@@ -458,6 +468,8 @@ namespace KinectRecorder.ViewModel
         private void DeactivateRecording()
         {
             RecordingSubscription.Dispose();
+
+            Debug.WriteLine($"Video: {videoSamples}, Audio: {audioSamples}, Written: {samplesWritten}");
         }
 
         private void StopProcessing()
@@ -474,6 +486,8 @@ namespace KinectRecorder.ViewModel
         public override void Cleanup()
         {
             StopProcessing();
+
+            objectFilter.SafeDispose();
 
             sw.Stop();
 

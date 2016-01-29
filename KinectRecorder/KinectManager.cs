@@ -57,6 +57,15 @@ namespace KinectRecorder
             ColorAndDepthSourceFrameArrived?.Invoke(sender, e);
         }
 
+        /// <summary>
+        /// Event gets called, when SetUpCustomMultiSourceReader was calles and the requested frames have arrived.
+        /// </summary>
+        public event EventHandler<MultiSourceFrameArrivedEventArgs> CustomMultiSourceFrameArrived;
+        private void OnCustomMultiSourceFrameArrived(object sender, MultiSourceFrameArrivedEventArgs e)
+        {
+            CustomMultiSourceFrameArrived?.Invoke(sender, e);
+        }
+
         public event EventHandler<ColorFrameArrivedEventArgs> ColorSourceFrameArrived;
         private void OnColorSourceFrameArrived(object sender, ColorFrameArrivedEventArgs e)
         {
@@ -78,6 +87,8 @@ namespace KinectRecorder
         #endregion
 
         private KinectSensor _sensor;
+
+        private MultiSourceFrameReader _customMultireader;
         private MultiSourceFrameReader _multireader;
         private MultiSourceFrameReader _colordepthReader;
         private ColorFrameReader _colorReader;
@@ -140,8 +151,6 @@ namespace KinectRecorder
 
                     _audioReader = _sensor.AudioSource.OpenReader();
 
-                    System.Diagnostics.Debug.WriteLine("SubFrameLenght" + _sensor.AudioSource.SubFrameLengthInBytes);
-
                     _multireader.MultiSourceFrameArrived += OnMultiSourceFrameArrived;
 
                     _colordepthReader.MultiSourceFrameArrived += OnColorAndDepthSourceFrameArrived;
@@ -154,6 +163,17 @@ namespace KinectRecorder
         }
 
         #region Public methods
+
+        /// <summary>
+        /// Set up a custom multi source reader who is serving the given frameSourceTypes.
+        /// 
+        /// </summary>
+        /// <param name="frameSourceTypes">FrameSourceTypes to deliver.</param>
+        public void SetUpCustomMultiSourceReader(FrameSourceTypes frameSourceTypes)
+        {
+            _customMultireader = _sensor.OpenMultiSourceFrameReader(frameSourceTypes);
+            _customMultireader.MultiSourceFrameArrived += OnCustomMultiSourceFrameArrived;
+        }
 
         public void StartRecording(string filePath)
         {
