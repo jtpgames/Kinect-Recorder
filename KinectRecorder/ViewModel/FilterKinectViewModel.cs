@@ -272,8 +272,6 @@ namespace KinectRecorder.ViewModel
 
         public RelayCommand TestGPUFilterCommand { get; private set; }
 
-        public RelayCommand TestWaveRecordingCommand { get; private set; }
-
         private MediaFoundationVideoWriter videoWriter;
         private WaveFile debugWaveFile;
 
@@ -293,8 +291,6 @@ namespace KinectRecorder.ViewModel
         private IDisposable ColorAndDepthSourceSubscription;
         private IDisposable AudioSourceSubscription;
         private IDisposable RecordingSubscription;
-
-        private IDisposable TestAudioRecordingSubscription;
 
         public FilterKinectViewModel()
         {
@@ -363,8 +359,6 @@ namespace KinectRecorder.ViewModel
             //TestGPUFilterCommand = new RelayCommand(objectFilter.testgpu);
             TestGPUFilterCommand = new RelayCommand(() => bTestGPU = !bTestGPU);
 
-            TestWaveRecordingCommand = new RelayCommand(TestAudioRecording);
-
             var observableIsRecording = ObservableEx.ObservableProperty(() => IsRecording);
 
             observableIsRecording.Subscribe(e =>
@@ -374,59 +368,6 @@ namespace KinectRecorder.ViewModel
             });
 
             sw = Stopwatch.StartNew();
-        }
-
-        private void TestAudioRecording()
-        {
-            if (debugWaveFile == null)
-            {
-                KinectManager.Instance.AudioSourceFrameArrived += (s, e) =>
-                {
-                    using (var beamFrames = e.FrameReference.AcquireBeamFrames())
-                    {
-                        if (beamFrames == null)
-                        {
-                            return;
-                        }
-
-                        var subFrame = beamFrames[0].SubFrames[0];
-                        var audioBuffer = new byte[subFrame.FrameLengthInBytes];
-                        subFrame.CopyFrameDataToArray(audioBuffer);
-
-                        debugWaveFile.Write(audioBuffer);
-                    }
-                };
-
-                var ofd = new Microsoft.Win32.OpenFileDialog();
-                ofd.Filter = "Kinect Eventstream|*.xef|All files|*.*";
-                ofd.Title = "Open a recording";
-
-                if (ofd.ShowDialog() == true)
-                {
-                    KinectManager.Instance.OpenRecording(ofd.FileName);
-
-                    debugWaveFile = new WaveFile(WAVEFORMATEX.DefaultPCM);
-                    debugWaveFile.Open(Path.Combine(Path.GetDirectoryName(ofd.FileName), Path.GetFileNameWithoutExtension(ofd.FileName)) + ".wav");
-
-                    if (KinectManager.Instance.Paused)
-                    {
-                        KinectManager.Instance.PauseKinect(false);
-                    }
-
-                    LogConsole.WriteLine("Audio Recording Test started ...");
-                }
-            }
-            else
-            {
-                if (KinectManager.Instance.Paused)
-                {
-                    KinectManager.Instance.PauseKinect();
-                }
-
-                debugWaveFile.Close();
-
-                LogConsole.WriteLine("Audio Recording Test finished ...");
-            }
         }
 
         private void OpenRecording()
@@ -541,8 +482,6 @@ namespace KinectRecorder.ViewModel
 
         private async void ColorAndDepthSourceFrameArrived(object sender, MultiSourceFrameArrivedEventArgs e)
         {
-            Debug.WriteLine("ColorAndDepthSourceFrameArrived " + Thread.CurrentThread.ManagedThreadId);
-
             // Get a reference to the multi-frame
             var reference = e.FrameReference.AcquireFrame();
 

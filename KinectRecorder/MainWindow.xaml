@@ -125,11 +125,6 @@
                             FontSize="12pt"
                             Command="{Binding DataContext.TestGPUFilterCommand, ElementName = FilterKinectControl}" />
 
-                    <Button Content="Test Audio Recording"
-                            Margin="4pt"
-                            FontSize="12pt"
-                            Command="{Binding DataContext.TestWaveRecordingCommand, ElementName = FilterKinectControl}" />
-
                 </StackPanel>
             </GroupBox>
         </Grid>
