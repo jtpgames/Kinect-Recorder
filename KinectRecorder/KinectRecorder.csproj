@@ -122,6 +122,7 @@
     <Compile Include="FilterKinectControl.xaml.cs">
       <DependentUpon>FilterKinectControl.xaml</DependentUpon>
     </Compile>
+    <Compile Include="GPGPU\GPGPUHelper.cs" />
     <Compile Include="GPGPU\GPUList.cs" />
     <Compile Include="KinectManager.cs" />
     <Compile Include="LogConsole.cs" />

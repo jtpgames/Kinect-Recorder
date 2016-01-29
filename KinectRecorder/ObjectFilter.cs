@@ -17,12 +17,23 @@ using Debug = System.Diagnostics.Debug;
 
 namespace KinectRecorder
 {
-    class ObjectFilter
+    class ObjectFilter : IDisposed
     {
         public enum FilterMode
         {
             CPU,
             GPU
+        }
+
+        struct int2
+        {
+            public int x, y;
+
+            public int2(int x, int y)
+            {
+                this.x = x;
+                this.y = y;
+            }
         }
 
         struct int4
@@ -35,117 +46,6 @@ namespace KinectRecorder
                 this.y = y;
                 this.z = z;
                 this.a = a;
-            }
-        }
-
-        static class GPGPUHelper
-        {
-            public static ComputeShader LoadComputeShader(Device device, string filename, string entrypoint)
-            {
-                // Compile compute shader
-                ShaderBytecode shaderBytecode = null;
-                try
-                {
-                    shaderBytecode = ShaderBytecode.CompileFromFile(filename, entrypoint, "cs_5_0", ShaderFlags.None, EffectFlags.None);
-                }
-                catch (Exception ex)
-                {
-                    LogConsole.WriteLine(ex.Message);
-                }
-
-                System.Diagnostics.Debug.Assert(shaderBytecode != null);
-
-                return new ComputeShader(device, shaderBytecode);
-            }
-
-            public static Buffer CreateConstantBuffer<T>(Device device, T[] data)
-                where T : struct
-            {
-                var elementCount = data.Length;
-                var bufferSizeInBytes = Marshal.SizeOf(typeof(T)) * elementCount;
-
-                bufferSizeInBytes = bufferSizeInBytes.RoundUp(16);
-
-                BufferDescription inputBufferDescription = new BufferDescription
-                {
-                    BindFlags = BindFlags.ConstantBuffer,
-                    CpuAccessFlags = CpuAccessFlags.Write,
-                    OptionFlags = ResourceOptionFlags.None,
-                    SizeInBytes = bufferSizeInBytes,
-                    StructureByteStride = 0,
-                    Usage = ResourceUsage.Dynamic,
-                };
-
-                Buffer inputBuffer = null;
-                try
-                {
-                    inputBuffer = new Buffer(device, inputBufferDescription);
-                    DataBox input = device.ImmediateContext.MapSubresource(inputBuffer, MapMode.WriteDiscard, MapFlags.None);
-                    input.Data.WriteRange(data);
-                    device.ImmediateContext.UnmapSubresource(inputBuffer, 0);
-                }
-                catch (Exception e)
-                {
-                    LogConsole.WriteLine(e.Message);
-                }
-
-                System.Diagnostics.Debug.Assert(inputBuffer != null);
-
-                return inputBuffer;
-            }
-
-            public static UnorderedAccessView CreateUnorderedAccessView(Device device, int width, int height, SlimDX.DXGI.Format format, out Texture2D texture)
-            {
-                var desc = new UnorderedAccessViewDescription()
-                {
-                    Dimension = UnorderedAccessViewDimension.Texture2D,
-                    ArraySize = 1,
-                    ElementCount = width * height,
-                    Format = format
-                };
-
-                texture = new Texture2D(device, new Texture2DDescription()
-                {
-                    ArraySize = 1,
-                    MipLevels = 1,
-                    OptionFlags = ResourceOptionFlags.None,
-                    SampleDescription = new SlimDX.DXGI.SampleDescription(1, 0),
-                    Usage = ResourceUsage.Default,
-                    CpuAccessFlags = CpuAccessFlags.None,
-                    BindFlags = BindFlags.ShaderResource | BindFlags.UnorderedAccess,
-                    Width = width,
-                    Height = height,
-                    Format = format
-                });
-
-                return new UnorderedAccessView(device, texture);
-            }
-
-            public static UnorderedAccessView CreateUnorderedAccessView<T>(Device device, T[] data, int width, int height, SlimDX.DXGI.Format format, out Texture2D texture)
-                where T : struct
-            {
-                throw new NotImplementedException();
-
-                texture = new Texture2D(device, new Texture2DDescription()
-                {
-                    ArraySize = 1,
-                    MipLevels = 1,
-                    OptionFlags = ResourceOptionFlags.None,
-                    SampleDescription = new SlimDX.DXGI.SampleDescription(1, 0),
-                    Usage = ResourceUsage.Dynamic,
-                    CpuAccessFlags = CpuAccessFlags.Write,
-                    BindFlags = BindFlags.ShaderResource | BindFlags.UnorderedAccess,
-                    Width = width,
-                    Height = height,
-                    Format = format
-                });
-
-                var context = device.ImmediateContext;
-                DataBox box = context.MapSubresource(texture, 0, 0, MapMode.WriteDiscard, MapFlags.None);
-                box.Data.WriteRange(data);
-                context.UnmapSubresource(texture, 0);
-
-                return new UnorderedAccessView(device, texture);
             }
         }
 
@@ -192,13 +92,31 @@ namespace KinectRecorder
             computeShader = GPGPUHelper.LoadComputeShader(device, "GPGPU/FilterObjects.compute", "Filter");
         }
 
-        ~ObjectFilter()
+        #region IDisposable Support
+        private bool disposedValue = false; // To detect redundant calls
+        public bool Disposed => disposedValue;
+
+        protected virtual void Dispose(bool disposing)
         {
-            if (computeShader != null)
-                computeShader.Dispose();
-            if (device != null)
-                device.Dispose();
+            if (!disposedValue)
+            {
+                if (disposing)
+                {
+                    computeShader.SafeDispose();
+                    device.SafeDispose();
+                }
+
+                lastFramePixels = null;
+
+                disposedValue = true;
+            }
         }
+
+        public void Dispose()
+        {
+            Dispose(true);
+        }
+        #endregion
 
         public void Reset()
         {
@@ -271,6 +189,33 @@ namespace KinectRecorder
                 bLastFrameReset = false;
             }
 
+            // -- Create halo array --
+
+            List<int2> halo = new List<int2>();
+
+            int s = haloSize;
+            int xd = s;
+            int yd = s / 2;
+            int S = (xd + yd) / 2;
+            int x0 = -xd;
+            int x1 = +xd;
+            int y0 = -yd;
+            int y1 = +yd;
+            int actualHaloSize = 0;
+            for (int y = y0; y < y1; ++y)
+            {
+                for (int x = x0; x < x1; ++x)
+                {
+                    if (Math.Abs(x) + Math.Abs(y) <= S)
+                    {
+                        halo.Add(new int2(x, y));
+                        ++actualHaloSize;
+                    }
+                }
+            }
+
+            // --
+
             // -- Perform data transformations so the arrays can be passed to the GPU --
 
             var bgraDataTransformed = new int4[1920 * 1080];
@@ -293,6 +238,7 @@ namespace KinectRecorder
             var cbuffer = GPGPUHelper.CreateConstantBuffer(device, new int[] { nearThresh, farThresh, haloSize });
 
             // -- Create GPULists using the immediate context and pass the data --
+
             GPUList<int4> bgraData = new GPUList<int4>(device.ImmediateContext);
             bgraData.AddRange(bgraDataTransformed);
 
@@ -317,11 +263,14 @@ namespace KinectRecorder
 
             var resultArray = new int4[1920 * 1080];
             GPUList<int4> resultData = new GPUList<int4>(device.ImmediateContext, resultArray);
+
+            GPUList<int2> haloData = new GPUList<int2>(device.ImmediateContext, halo);
+
             // --
 
             var sw = Stopwatch.StartNew();
 
-            // Run the compute shader
+            // Set the buffers and uavs
             device.ImmediateContext.ComputeShader.Set(computeShader);
             device.ImmediateContext.ComputeShader.SetConstantBuffer(cbuffer, 0);
             device.ImmediateContext.ComputeShader.SetUnorderedAccessView(bgraData.UnorderedAccess, 0);
@@ -329,23 +278,26 @@ namespace KinectRecorder
             device.ImmediateContext.ComputeShader.SetUnorderedAccessView(depthSpacePointData.UnorderedAccess, 2);
             device.ImmediateContext.ComputeShader.SetUnorderedAccessView(lastFrameData.UnorderedAccess, 3);
             device.ImmediateContext.ComputeShader.SetUnorderedAccessView(resultData.UnorderedAccess, 4);
-            // gcd(1920, 1080) = 120
-            // 120 * 120 > 1024 --> throws shader compilation exception
-            // so we reduce it to 30
-            //device.ImmediateContext.Dispatch(1920 / 30, 1080 / 30, 1);
+            device.ImmediateContext.ComputeShader.SetUnorderedAccessView(haloData.UnorderedAccess, 5);
+
+            // Run the compute shader
             device.ImmediateContext.Dispatch(1920 * 1080 / 256, 1, 1);
 
+            // Get result. This call blocks, until the result was calculated
+            // because the MapSubresource call waits.
             var result = resultData.ToArray();
 
             sw.Stop();
 
             // -- Clean up --
+
             device.ImmediateContext.ComputeShader.SetConstantBuffer(null, 0);
             device.ImmediateContext.ComputeShader.SetUnorderedAccessView(null, 0);
             device.ImmediateContext.ComputeShader.SetUnorderedAccessView(null, 1);
             device.ImmediateContext.ComputeShader.SetUnorderedAccessView(null, 2);
             device.ImmediateContext.ComputeShader.SetUnorderedAccessView(null, 3);
             device.ImmediateContext.ComputeShader.SetUnorderedAccessView(null, 4);
+            device.ImmediateContext.ComputeShader.SetUnorderedAccessView(null, 5);
 
             cbuffer.Dispose();
             bgraData.Dispose();
@@ -353,6 +305,8 @@ namespace KinectRecorder
             depthSpacePointData.Dispose();
             lastFrameData.Dispose();
             resultData.Dispose();
+            haloData.Dispose();
+
             // --
 
             Debug.WriteLine($"Filtering took {sw.ElapsedMilliseconds} ms");

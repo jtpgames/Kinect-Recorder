@@ -16,9 +16,7 @@ RWStructuredBuffer<uint> depth						: register (u1);
 RWStructuredBuffer<DepthSpacePoint> depthSpaceData	: register (u2);
 RWStructuredBuffer<int4> lastFrame					: register (u3);
 RWStructuredBuffer<int4> result						: register (u4);
-
-// TODO: Pass halo as a structured buffer instead of calculating it in every thread
-static int2 halo[1024];
+RWStructuredBuffer<int2> halo						: register (u5);
 
 static const uint ColorWidth = 1920;
 static const uint ColorSize = 1920 * 1080;
@@ -83,27 +81,6 @@ static const uint NumThreads = 256;
 [numthreads(NumThreads, 1, 1)]
 void Filter(uint3 threadID : SV_DispatchThreadID)
 {	
-	int s = haloSize;
-	int xd = s;
-	int yd = s / 2;
-	int S = (xd + yd) / 2;
-	int x0 = -xd;
-	int x1 = +xd;
-	int y0 = -yd;
-	int y1 = +yd;
-	int actualHaloSize = 0;
-	for (int y = y0; y < y1; ++y)
-	{
-		for (int x = x0; x < x1; ++x)
-		{
-			if (abs(x) + abs(y) <= S)
-			{
-				halo[actualHaloSize] = int2(x, y);
-				++actualHaloSize;
-			}
-		}
-	}
-
 	int colorIndex = threadID.x;
 
 	const DepthSpacePoint dsp = depthSpaceData[colorIndex];
