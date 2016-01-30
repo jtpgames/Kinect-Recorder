@@ -22,32 +22,6 @@ using System.Reactive.Subjects;
 
 namespace KinectRecorder.ViewModel
 {
-    /// <summary>
-    /// http://www.mikeadev.net/2013/06/generic-method/
-    /// </summary>
-    public static class MathHelper
-    {
-        /// <summary>
-        /// Clamps value within desired range
-        /// This is a generic. So use any type you want
-        /// </summary>
-        /// <param name="value">Value to be clamped</param>
-        /// <param name="min">Min range</param>
-        /// <param name="max">Max range</param>
-        /// <returns>Clamped value within range</returns>
-        public static T Clamp<T>(T value, T min, T max)
-            where T : IComparable<T>
-        {
-            T result = value;
-            if (result.CompareTo(max) > 0)
-                result = max;
-            if (result.CompareTo(min) < 0)
-                result = min;
-
-            return result;
-        }
-    }
-
     public class FilterKinectViewModel : ViewModelBase
     {
         #region Filter Configurations
@@ -288,11 +262,15 @@ namespace KinectRecorder.ViewModel
 
         #endregion
 
+        #region Relay Commands
+
         public RelayCommand<System.Windows.Controls.Button> ToggleRecordingCommand { get; private set; }
 
         public RelayCommand OpenRecordingCommand { get; private set; }
 
         public RelayCommand ResetFilterCommand { get; private set; }
+
+        #endregion
 
         private MediaFoundationVideoWriter videoWriter;
         private WaveFile debugWaveFile;
@@ -347,6 +325,8 @@ namespace KinectRecorder.ViewModel
 
             objectFilter = ObjectFilter.CreateObjectFilterWithGPUSupport();
 
+            // -- Initialize Relay commands --
+
             ToggleRecordingCommand = new RelayCommand<System.Windows.Controls.Button>(sender =>
             {
                 if (!IsRecording)
@@ -390,6 +370,9 @@ namespace KinectRecorder.ViewModel
 
             ResetFilterCommand = new RelayCommand(objectFilter.Reset);
 
+            // --
+            // -- Create observables to activate / deactive recording and to start and stop processing  --
+
             var observableIsRecording = ObservableEx.ObservableProperty(() => IsRecording);
 
             observableIsRecording.Subscribe(e =>
@@ -410,6 +393,8 @@ namespace KinectRecorder.ViewModel
                 .CombineLatest(observableIsRunning, (available, running) => Tuple.Create(available, running))
                 .Where(tuple => !tuple.Item1 || !tuple.Item2)
                 .Subscribe(_ => StopProcessing());
+
+            // --
 
             sw = Stopwatch.StartNew();
         }

@@ -126,6 +126,7 @@
     <Compile Include="GPGPU\GPUList.cs" />
     <Compile Include="KinectManager.cs" />
     <Compile Include="LogConsole.cs" />
+    <Compile Include="MathHelper.cs" />
     <Compile Include="Multimedia\AACAudioWriter.cs" />
     <Compile Include="Multimedia\MediaFoundationVideoWriter.cs" />
     <Compile Include="Multimedia\MemoryMappedTexture32bpp.cs" />
