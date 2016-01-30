@@ -39,6 +39,12 @@ namespace KinectRecorder
 
         #region Events
 
+        public event EventHandler<IsAvailableChangedEventArgs> KinectAvailabilityChanged;
+        private void OnKinectAvailabilityChanged(object sender, IsAvailableChangedEventArgs e)
+        {
+            KinectAvailabilityChanged?.Invoke(sender, e);
+        }
+
         /// <summary>
         /// Event gets called, when the Color-, Depth-, and IR-Frames arrived.
         /// </summary>
@@ -140,6 +146,8 @@ namespace KinectRecorder
 
                 if (_sensor.IsOpen)
                 {
+                    _sensor.IsAvailableChanged += OnKinectAvailabilityChanged;
+
                     _multireader = _sensor.OpenMultiSourceFrameReader(FrameSourceTypes.Color |
                                                  FrameSourceTypes.Depth |
                                                  FrameSourceTypes.Infrared);

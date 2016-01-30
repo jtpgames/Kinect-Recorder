@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
@@ -20,9 +21,14 @@ namespace KinectRecorder
     /// </summary>
     public partial class MainWindow : Window
     {
+        [DllImport("dwmapi.dll")]
+        public static extern int DwmEnableMMCSS(bool fEnable);
+
         public MainWindow()
         {
             InitializeComponent();
+
+            DwmEnableMMCSS(true);
         }
 
         private void window_Closed(object sender, EventArgs e)

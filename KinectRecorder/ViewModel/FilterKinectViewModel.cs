@@ -187,6 +187,8 @@ namespace KinectRecorder.ViewModel
 
         #endregion
 
+        #region Visualization and Control Properties
+
         private ImageSource filteredVideoFrame;
         public ImageSource FilteredVideoFrame
         {
@@ -201,8 +203,12 @@ namespace KinectRecorder.ViewModel
 
                 filteredVideoFrame = value;
                 RaisePropertyChanged();
+
+                observableFilteredImage.SafeOnNext(filteredVideoFrame);
             }
         }
+
+        private Subject<ImageSource> observableFilteredImage;
 
         private byte[] audioFrame;
         private byte[] AudioFrame
@@ -218,8 +224,12 @@ namespace KinectRecorder.ViewModel
 
                 audioFrame = value;
                 RaisePropertyChanged();
+
+                observableAudioFrame.SafeOnNext(audioFrame);
             }
         }
+
+        private Subject<byte[]> observableAudioFrame;
 
         private bool isRunning = false;
         public bool IsRunning
@@ -234,16 +244,11 @@ namespace KinectRecorder.ViewModel
                 isRunning = value;
                 RaisePropertyChanged();
 
-                if (isRunning)
-                {
-                    StartProcessing();
-                }
-                else
-                {
-                    StopProcessing();
-                }
+                observableIsRunning.SafeOnNext(isRunning);
             }
         }
+
+        private Subject<bool> observableIsRunning = new Subject<bool>();
 
         private bool isRecording = false;
         public bool IsRecording
@@ -259,6 +264,10 @@ namespace KinectRecorder.ViewModel
                 RaisePropertyChanged();
             }
         }
+
+        #endregion
+
+        #region FPS Display
 
         private Stopwatch sw;
         private int totalFrames = 0;
@@ -276,6 +285,8 @@ namespace KinectRecorder.ViewModel
                 RaisePropertyChanged();
             }
         }
+
+        #endregion
 
         public RelayCommand<System.Windows.Controls.Button> ToggleRecordingCommand { get; private set; }
 
@@ -300,7 +311,11 @@ namespace KinectRecorder.ViewModel
 
         private ObjectFilter objectFilter;
 
+        private IDisposable StartProcessingSubscription;
+        private IDisposable StopProcessingSubscription;
+
         private IDisposable ColorAndDepthSourceSubscription;
+        private IDisposable AutoThresholdSubscription;
         private IDisposable FilterFramesSubscription;
         private IDisposable RecordingSubscription;
 
@@ -330,7 +345,6 @@ namespace KinectRecorder.ViewModel
             NearThreshold = 1589;
             FarThreshold = 1903;
 
-            //objectFilter = new ObjectFilter();
             objectFilter = ObjectFilter.CreateObjectFilterWithGPUSupport();
 
             ToggleRecordingCommand = new RelayCommand<System.Windows.Controls.Button>(sender =>
@@ -384,6 +398,19 @@ namespace KinectRecorder.ViewModel
                 else DeactivateRecording();
             });
 
+            var observableIsAvailable = Observable.FromEventPattern<IsAvailableChangedEventArgs>(KinectManager.Instance, "KinectAvailabilityChanged")
+                .Select(e => e.EventArgs.IsAvailable);
+
+            StartProcessingSubscription = observableIsAvailable
+                .CombineLatest(observableIsRunning, (available, running) => Tuple.Create(available, running))
+                .Where(tuple => tuple.Item1 && tuple.Item2)
+                .Subscribe(_ => StartProcessing());
+
+            StopProcessingSubscription = observableIsAvailable
+                .CombineLatest(observableIsRunning, (available, running) => Tuple.Create(available, running))
+                .Where(tuple => !tuple.Item1 || !tuple.Item2)
+                .Subscribe(_ => StopProcessing());
+
             sw = Stopwatch.StartNew();
         }
 
@@ -429,10 +456,86 @@ namespace KinectRecorder.ViewModel
             observableDepthData = new Subject<ushort[]>();
             observableDepthSpaceData = new Subject<DepthSpacePoint[]>();
 
+            AutoThresholdSubscription = observableDepthData
+                .Sample(TimeSpan.FromSeconds(1))
+                .Where(_ => AutomaticThresholds)
+                .Select(data => AutomaticThreshold(data))
+                .Subscribe(async (thresh) => 
+                {
+                    var t = await thresh;
+                    FarThreshold = t;
+                    NearThreshold = t - 500; // Nearthreshold is 50 cm towards the camera.
+                });
+
             FilterFramesSubscription = observableColorData
                 .Zip(observableDepthData, observableDepthSpaceData, (c, d, dsp) => Tuple.Create(c, d, dsp))
                 .Select((t) => FilterFrames(t.Item1, t.Item2, t.Item3))
                 .Subscribe(async (bytes) => FilteredVideoFrame = (await bytes).ToBgr32BitMap());
+        }
+
+        private Task<ushort> AutomaticThreshold(ushort[] depthData)
+        {
+            return Task.Run(() =>
+            {
+                /* 
+                 * 1. method: Just take the maximum depth
+                 * Works only if the area in front of the camera is flat
+                 */
+                var maxDepth = depthData.Max();
+
+                /* 
+                 * 2. method: Take the depth value which occurs most often
+                 */
+                var bins = new Dictionary<ushort, int>();
+                foreach (var depth in depthData)
+                {
+                    if (depth == 0) continue;
+
+                    if (bins.ContainsKey(depth))
+                    {
+                        ++bins[depth];
+                    }
+                    else
+                    {
+                        bins.Add(depth, 1);
+                    }
+                }
+
+                ushort binWithHighestValue = 0;
+                int HighestValue = 0;
+                foreach (var bin in bins)
+                {
+                    if (bin.Value > HighestValue)
+                    {
+                        binWithHighestValue = bin.Key;
+                        HighestValue = bin.Value;
+                    }
+                }
+
+                maxDepth = binWithHighestValue;
+
+                /*
+                 * 3. method: Take the depth in the middle of the frame and apply a 3x3 mean filter.
+                 */
+
+                var meanConvolutionKernel = new float[3, 3]
+                {
+                            {1, 1, 1 }, {1, 1, 1 }, { 1, 1, 1 }
+                };
+
+                meanConvolutionKernel.Multiply(1f / 9f);
+
+                var depthMatrix = depthData.Select((s) => (float)s).ToArray().ToMatrix(KinectManager.DepthWidth, KinectManager.DepthHeight);
+
+                var middleMean = depthMatrix.ConvolutePixel(KinectManager.DepthWidth / 2, KinectManager.DepthHeight / 2, meanConvolutionKernel);
+
+                maxDepth = (ushort)middleMean;
+
+                // Clamp the value so it is within the allowed threshold
+                maxDepth = MathHelper.Clamp(maxDepth, ThresholdMin, ThresholdMax);
+
+                return maxDepth;
+            });
         }
 
         private Task<byte[]> FilterFrames(byte[] color, ushort[] depth, DepthSpacePoint[] depthSpace)
@@ -465,31 +568,33 @@ namespace KinectRecorder.ViewModel
 
         private void ActivateRecording()
         {
-            var observableFilteredImage = ObservableEx.ObservableProperty(() => FilteredVideoFrame)
-                .Select(img =>
+            observableFilteredImage = new Subject<ImageSource>();
+            var observablePixels = observableFilteredImage.Select(img =>
                 {
                     var pixels = new byte[KinectManager.ColorWidth * KinectManager.ColorHeight * 4];
                     ((img) as BitmapSource).CopyPixels(pixels, KinectManager.ColorWidth * 4, 0);
 
                     return pixels;
                 });
-            var observableAudioFrame = ObservableEx.ObservableProperty(() => AudioFrame);
 
-            var observable = observableFilteredImage
+            observableAudioFrame = new Subject<byte[]>();
+
+            var observable = observablePixels
                 .Zip(observableAudioFrame, (image, audio) => Tuple.Create(image, audio));
 
             RecordingSubscription = observable
-                .Subscribe(t =>
+                .Subscribe(async t =>
             {
-                Debug.WriteLine($"Video: {videoSamples}, Audio: {audioSamples}");
+                await Task.Run(() =>
+                {
+                    --audioSamples;
+                    --videoSamples;
+                    ++samplesWritten;
 
-                --audioSamples;
-                --videoSamples;
-                ++samplesWritten;
+                    debugWaveFile.Write(t.Item2);
 
-                debugWaveFile.Write(t.Item2);
-
-                videoWriter.AddVideoAndAudioFrame(t.Item1.ToMemoryMappedTexture(), t.Item2);
+                    videoWriter.AddVideoAndAudioFrame(t.Item1.ToMemoryMappedTexture(), t.Item2);
+                });
             });
         }
 
@@ -497,7 +602,7 @@ namespace KinectRecorder.ViewModel
         {
             RecordingSubscription.SafeDispose();
 
-            Debug.WriteLine($"Video: {videoSamples}, Audio: {audioSamples}, Written: {samplesWritten}");
+            LogConsole.WriteLine($"Video: {videoSamples}, Audio: {audioSamples}, Written: {samplesWritten}");
         }
 
         private void StopProcessing()
@@ -510,7 +615,7 @@ namespace KinectRecorder.ViewModel
             ColorAndDepthSourceSubscription.SafeDispose();
             FilterFramesSubscription.SafeDispose();
 
-            Debug.WriteLine($"Videoframes: {numVideoFrames}, Audioframes: {numAudioFrames}, TotalFramesArrived: {numColorAndDepthFrame}");
+            LogConsole.WriteLine($"Videoframes: {numVideoFrames}, Audioframes: {numAudioFrames}, TotalFramesArrived: {numColorAndDepthFrame}");
         }
 
         public override void Cleanup()
@@ -532,13 +637,11 @@ namespace KinectRecorder.ViewModel
             ++totalFrames;
             ++numColorAndDepthFrame;
 
-            var bOneSecondElapsed = false;
             if (sw.ElapsedMilliseconds >= 1000)
             {
                 Fps = totalFrames;
                 totalFrames = 0;
                 sw.Restart();
-                bOneSecondElapsed = true;
             }
 
             // -- Open depth frame --
@@ -552,72 +655,9 @@ namespace KinectRecorder.ViewModel
 
                     KinectManager.Instance.CoordinateMapper.MapColorFrameToDepthSpace(depthData, depthSpaceData);
 
-                    // Notify Observers
+                    // Notify observers
                     observableDepthData.OnNext(depthData);
                     observableDepthSpaceData.OnNext(depthSpaceData);
-
-                    if (bOneSecondElapsed && AutomaticThresholds)
-                    {
-                        /* 
-                        * 1. method: Just take the maximum depth
-                         * Works only if the area in front of the camera is flat
-                         */
-                        var maxDepth = depthData.Max();
-
-                        /* 
-                         * 2. method: Take the depth value which occurs most often
-                         */
-                        var bins = new Dictionary<ushort, int>();
-                        foreach (var depth in depthData)
-                        {
-                            if (depth == 0) continue;
-
-                            if (bins.ContainsKey(depth))
-                            {
-                                ++bins[depth];
-                            }
-                            else
-                            {
-                                bins.Add(depth, 1);
-                            }
-                        }
-
-                        ushort binWithHighestValue = 0;
-                        int HighestValue = 0;
-                        foreach (var bin in bins)
-                        {
-                            if (bin.Value > HighestValue)
-                            {
-                                binWithHighestValue = bin.Key;
-                                HighestValue = bin.Value;
-                            }
-                        }
-
-                        maxDepth = binWithHighestValue;
-
-                        /*
-                         * 3. method: Take the depth in the middle of the frame and apply a 3x3 mean filter.
-                         */
-
-                        var meanConvolutionKernel = new float[3, 3]
-                        {
-                            {1, 1, 1 }, {1, 1, 1 }, { 1, 1, 1 }
-                        };
-
-                        meanConvolutionKernel.Multiply(1f / 9f);
-
-                        var depthMatrix = depthData.Select((s) => (float)s).ToArray().ToMatrix(KinectManager.DepthWidth, KinectManager.DepthHeight);
-
-                        var middleMean = depthMatrix.ConvolutePixel(KinectManager.DepthWidth / 2, KinectManager.DepthHeight / 2, meanConvolutionKernel);
-
-                        maxDepth = (ushort)middleMean;
-
-                        // Clamp the value so it is within the allowed threshold
-                        maxDepth = MathHelper.Clamp(maxDepth, ThresholdMin, ThresholdMax);
-
-                        FarThreshold = maxDepth;
-                        NearThreshold = maxDepth - 500; // Nearthreshold is 50 cm towards the camera.
-                    }
                 }
             }
             // --
@@ -631,6 +671,8 @@ namespace KinectRecorder.ViewModel
                     Debug.Assert(frame.FrameDescription.LengthInPixels == KinectManager.ColorSize);
 
                     colorData = KinectManager.Instance.ToByteBuffer(frame);
+
+                    // Notify observers
                     observableColorData.OnNext(colorData);
                 }
             }

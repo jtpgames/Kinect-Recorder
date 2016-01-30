@@ -12,6 +12,7 @@ using System.ComponentModel;
 using System.Linq.Expressions;
 using System.Reactive.Linq;
 using System.Reflection;
+using System.Reactive.Subjects;
 
 namespace KinectRecorder
 {
@@ -76,6 +77,13 @@ namespace KinectRecorder
                  .Select(_ => property.GetValue(constantExpression.Value, null))
                  .DistinctUntilChanged()
                  .Cast<T>();
+        }
+        public static void SafeOnNext<T>(this Subject<T> observable, T value)
+        {
+            if (observable != null)
+            {
+                observable.OnNext(value);
+            }
         }
     }
 
