@@ -78,7 +78,7 @@ namespace KinectRecorder
                  .DistinctUntilChanged()
                  .Cast<T>();
         }
-        public static void SafeOnNext<T>(this Subject<T> observable, T value)
+        public static void SafeOnNext<T>(this IObserver<T> observable, T value)
         {
             if (observable != null)
             {

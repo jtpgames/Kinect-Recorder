@@ -173,12 +173,11 @@ namespace KinectRecorder.ViewModel
 
             set
             {
-                ++videoSamples;
-
                 filteredVideoFrame = value;
                 RaisePropertyChanged();
 
-                observableFilteredImage.SafeOnNext(filteredVideoFrame);
+                if (IsRecording)
+                    observableFilteredImage.SafeOnNext(filteredVideoFrame);
             }
         }
 
@@ -194,12 +193,11 @@ namespace KinectRecorder.ViewModel
 
             set
             {
-                ++audioSamples;
-
                 audioFrame = value;
                 RaisePropertyChanged();
 
-                observableAudioFrame.SafeOnNext(audioFrame);
+                if (IsRecording)
+                    observableAudioFrame.SafeOnNext(audioFrame);
             }
         }
 
@@ -238,6 +236,8 @@ namespace KinectRecorder.ViewModel
                 RaisePropertyChanged();
             }
         }
+
+        private bool isRecordingPendingFrames = false;
 
         #endregion
 
@@ -353,14 +353,6 @@ namespace KinectRecorder.ViewModel
                 }
                 else
                 {
-                    if (videoWriter != null)
-                    {
-                        videoWriter.Dispose();
-                        videoWriter = null;
-                    }
-
-                    debugWaveFile.Close();
-
                     sender.Content = "Record";
                     IsRecording = false;
                 }
@@ -375,11 +367,13 @@ namespace KinectRecorder.ViewModel
 
             var observableIsRecording = ObservableEx.ObservableProperty(() => IsRecording);
 
-            observableIsRecording.Subscribe(e =>
-            {
-                if (e) ActivateRecording();
-                else DeactivateRecording();
-            });
+            observableIsRecording
+                .Throttle(TimeSpan.FromSeconds(1))
+                .Subscribe(e =>
+                {
+                    if (e) ActivateRecording();
+                    else DeactivateRecording();
+                });
 
             var observableIsAvailable = Observable.FromEventPattern<IsAvailableChangedEventArgs>(KinectManager.Instance, "KinectAvailabilityChanged")
                 .Select(e => e.EventArgs.IsAvailable);
@@ -554,7 +548,9 @@ namespace KinectRecorder.ViewModel
         private void ActivateRecording()
         {
             observableFilteredImage = new Subject<ImageSource>();
-            var observablePixels = observableFilteredImage.Select(img =>
+            var observablePixels = observableFilteredImage
+                .Do(_ => ++videoSamples)
+                .Select(img =>
                 {
                     var pixels = new byte[KinectManager.ColorWidth * KinectManager.ColorHeight * 4];
                     ((img) as BitmapSource).CopyPixels(pixels, KinectManager.ColorWidth * 4, 0);
@@ -563,29 +559,58 @@ namespace KinectRecorder.ViewModel
                 });
 
             observableAudioFrame = new Subject<byte[]>();
+            var observableAudio = observableAudioFrame
+                .Do(_ => ++audioSamples);
 
             var observable = observablePixels
-                .Zip(observableAudioFrame, (image, audio) => Tuple.Create(image, audio));
+                .Zip(observableAudio, (image, audio) => Tuple.Create(image, audio));
 
             RecordingSubscription = observable
                 .Subscribe(async t =>
-            {
-                await Task.Run(() =>
                 {
-                    --audioSamples;
-                    --videoSamples;
-                    ++samplesWritten;
+                    await WriteVideoAndAudioFrame(t);
 
-                    debugWaveFile.Write(t.Item2);
-
-                    videoWriter.AddVideoAndAudioFrame(t.Item1.ToMemoryMappedTexture(), t.Item2);
+                    if (isRecordingPendingFrames && (videoSamples == 0 || audioSamples == 0))
+                        CleanUpAfterPendingFramesWereRecorded();
                 });
+        }
+
+        private Task WriteVideoAndAudioFrame(Tuple<byte[], byte[]> input)
+        {
+            return Task.Run(() =>
+            {
+                --audioSamples;
+                --videoSamples;
+                ++samplesWritten;
+
+                debugWaveFile.Write(input.Item2);
+
+                videoWriter.AddVideoAndAudioFrame(input.Item1.ToMemoryMappedTexture(), input.Item2);
             });
         }
 
         private void DeactivateRecording()
         {
+            isRecordingPendingFrames = true;
+
+            //RecordingSubscription.SafeDispose();
+            //observableFilteredImage.OnCompleted();
+            //observableAudioFrame.OnCompleted();
+
+            Debug.WriteLine($"Video: {videoSamples}, Audio: {audioSamples}, Written: {samplesWritten}");
+        }
+
+        private void CleanUpAfterPendingFramesWereRecorded()
+        {
             RecordingSubscription.SafeDispose();
+            observableFilteredImage.OnCompleted();
+            observableAudioFrame.OnCompleted();
+
+            videoWriter.SafeDispose();
+
+            debugWaveFile.SafeDispose();
+
+            isRecordingPendingFrames = false;
 
             LogConsole.WriteLine($"Video: {videoSamples}, Audio: {audioSamples}, Written: {samplesWritten}");
         }
@@ -606,6 +631,8 @@ namespace KinectRecorder.ViewModel
         public override void Cleanup()
         {
             StopProcessing();
+
+            DeactivateRecording();
 
             objectFilter.SafeDispose();
 
