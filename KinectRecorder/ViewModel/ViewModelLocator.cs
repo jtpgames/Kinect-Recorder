@@ -49,8 +49,10 @@ namespace KinectRecorder.ViewModel
 
         public MainViewModel Main => ServiceLocator.Current.GetInstance<MainViewModel>();
 
-        public FilterKinectViewModel FilterKinect => ServiceLocator.Current.GetInstance<FilterKinectViewModel>();
+        //public FilterKinectViewModel FilterKinect => ServiceLocator.Current.GetInstance<FilterKinectViewModel>();
         
+        public static FilterKinectViewModel FilterKinect => ServiceLocator.Current.GetInstance<FilterKinectViewModel>();
+
         public static void Cleanup()
         {
             ServiceLocator.Current.GetInstance<MainViewModel>().Cleanup();

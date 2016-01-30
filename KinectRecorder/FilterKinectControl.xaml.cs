@@ -27,7 +27,7 @@ namespace KinectRecorder
         {
             InitializeComponent();
 
-            vm = new FilterKinectViewModel();
+            vm = ViewModelLocator.FilterKinect;
             DataContext = vm;
         }
     }

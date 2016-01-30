@@ -15,10 +15,10 @@ namespace KinectRecorder.GPGPU
 {
     static class GPGPUHelper
     {
-        public static ComputeShader LoadComputeShader(Device device, string filename, string entrypoint)
+        public static ComputeShader LoadComputeShader(Device device, string filename, string entrypoint, out ShaderBytecode shaderBytecode)
         {
             // Compile compute shader
-            ShaderBytecode shaderBytecode = null;
+            shaderBytecode = null;
             try
             {
                 shaderBytecode = ShaderBytecode.CompileFromFile(filename, entrypoint, "cs_5_0", ShaderFlags.None, EffectFlags.None);

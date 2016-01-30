@@ -53,6 +53,7 @@ namespace KinectRecorder
         private byte[] lastFramePixels;
 
         private Device device;
+        private ShaderBytecode shaderByteCode;
         private ComputeShader computeShader;
 
         public static Task<ObjectFilter> CreateObjectFilterWithGPUSupportAsync()
@@ -80,7 +81,7 @@ namespace KinectRecorder
             device = new Device(DriverType.Hardware, DeviceCreationFlags.Debug, FeatureLevel.Level_11_0);
 
             // Compile compute shader
-            return Task.Run(() => computeShader = GPGPUHelper.LoadComputeShader(device, "GPGPU/FilterObjects.compute", "Filter"));
+            return Task.Run(() => computeShader = GPGPUHelper.LoadComputeShader(device, "GPGPU/FilterObjects.compute", "Filter", out shaderByteCode));
         }
 
         private void InitGPUSupport()
@@ -89,7 +90,7 @@ namespace KinectRecorder
             device = new Device(DriverType.Hardware, DeviceCreationFlags.Debug, FeatureLevel.Level_11_0);
 
             // Compile compute shader  
-            computeShader = GPGPUHelper.LoadComputeShader(device, "GPGPU/FilterObjects.compute", "Filter");
+            computeShader = GPGPUHelper.LoadComputeShader(device, "GPGPU/FilterObjects.compute", "Filter", out shaderByteCode);
         }
 
         #region IDisposable Support
@@ -102,6 +103,7 @@ namespace KinectRecorder
             {
                 if (disposing)
                 {
+                    shaderByteCode.SafeDispose();
                     computeShader.SafeDispose();
                     device.SafeDispose();
                 }
@@ -123,12 +125,14 @@ namespace KinectRecorder
             bLastFrameReset = true;
         }
 
+#if DEBUG
         public void testgpu()
         {
             // Make device
             Device device = new Device(DriverType.Hardware, DeviceCreationFlags.None, FeatureLevel.Level_11_0);
 
-            ComputeShader compute = GPGPUHelper.LoadComputeShader(device, "GPGPU/Simple.compute", "main");
+            ShaderBytecode byteCode;
+            ComputeShader compute = GPGPUHelper.LoadComputeShader(device, "GPGPU/Simple.compute", "main", out byteCode);
 
             Texture2D uavTexture;
             UnorderedAccessView computeResult = GPGPUHelper.CreateUnorderedAccessView(device, 1024, 1024, SlimDX.DXGI.Format.R8G8B8A8_UNorm, out uavTexture);
@@ -139,6 +143,7 @@ namespace KinectRecorder
 
             Texture2D.ToFile(device.ImmediateContext, uavTexture, ImageFileFormat.Png, "uav.png");
         }
+#endif
 
         public Task<byte[]> FilterAsync(byte[] bgra, ushort[] depth, DepthSpacePoint[] depthSpaceData,
             int nearThresh, int farThresh, int haloSize)
