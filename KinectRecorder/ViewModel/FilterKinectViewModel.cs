@@ -170,6 +170,21 @@ namespace KinectRecorder.ViewModel
             }
         }
 
+        private bool bUseGPUFiltering = false;
+        public bool UseGPUFiltering
+        {
+            get
+            {
+                return bUseGPUFiltering;
+            }
+
+            set
+            {
+                bUseGPUFiltering = value;
+                RaisePropertyChanged();
+            }
+        }
+
         #endregion
 
         private ImageSource filteredVideoFrame;
@@ -186,14 +201,6 @@ namespace KinectRecorder.ViewModel
 
                 filteredVideoFrame = value;
                 RaisePropertyChanged();
-
-                //if (IsRecording && filteredVideoFrame != null)
-                //{
-                //    var pixels = new byte[KinectManager.ColorWidth * KinectManager.ColorHeight * 4];
-                //    ((filteredVideoFrame) as BitmapSource).CopyPixels(pixels, KinectManager.ColorWidth * 4, 0);
-
-                //    videoWriter.AddVideoFrame(pixels.ToMemoryMappedTexture());
-                //}
             }
         }
 
@@ -276,12 +283,8 @@ namespace KinectRecorder.ViewModel
 
         public RelayCommand ResetFilterCommand { get; private set; }
 
-        public RelayCommand TestGPUFilterCommand { get; private set; }
-
         private MediaFoundationVideoWriter videoWriter;
         private WaveFile debugWaveFile;
-
-        private bool bTestGPU = false;
 
         private ushort[] depthData = new ushort[KinectManager.DepthSize];
         private Subject<ushort[]> observableDepthData;
@@ -373,9 +376,6 @@ namespace KinectRecorder.ViewModel
 
             ResetFilterCommand = new RelayCommand(objectFilter.Reset);
 
-            //TestGPUFilterCommand = new RelayCommand(objectFilter.testgpu);
-            TestGPUFilterCommand = new RelayCommand(() => bTestGPU = !bTestGPU);
-
             var observableIsRecording = ObservableEx.ObservableProperty(() => IsRecording);
 
             observableIsRecording.Subscribe(e =>
@@ -439,25 +439,25 @@ namespace KinectRecorder.ViewModel
         {
             Task<byte[]> task;
 
-            if (bTestGPU)
+            if (FilterEnabled)
             {
-                var bytes = objectFilter.FilterGPU(colorData, depthData, depthSpaceData, NearThreshold, FarThreshold, HaloSize);
-                task = Task.FromResult(bytes);
-            }
-            else
-            {
-                if (FilterEnabled)
+                if (UseGPUFiltering)
                 {
-                    task = objectFilter.FilterCPUAsync(colorData, depthData, depthSpaceData, NearThreshold, FarThreshold, HaloSize);
-                }
-                else if (VisualizeThresholds)
-                {
-                    task = Task.Run(() => Threshold(colorData));
+                    var bytes = objectFilter.FilterGPU(colorData, depthData, depthSpaceData, NearThreshold, FarThreshold, HaloSize);
+                    task = Task.FromResult(bytes);
                 }
                 else
                 {
-                    task = Task.FromResult(color);
+                    task = objectFilter.FilterCPUAsync(colorData, depthData, depthSpaceData, NearThreshold, FarThreshold, HaloSize);
                 }
+            }
+            else if (VisualizeThresholds)
+            {
+                task = Task.Run(() => Threshold(colorData));
+            }
+            else
+            {
+                task = Task.FromResult(color);
             }
 
             return task;
@@ -524,10 +524,8 @@ namespace KinectRecorder.ViewModel
             base.Cleanup();
         }
 
-        private async void ColorAndDepthSourceFrameArrived(object sender, MultiSourceFrameArrivedEventArgs e)
+        private void ColorAndDepthSourceFrameArrived(object sender, MultiSourceFrameArrivedEventArgs e)
         {
-            var sw2 = Stopwatch.StartNew();
-
             // Get a reference to the multi-frame
             var reference = e.FrameReference.AcquireFrame();
 
@@ -634,29 +632,6 @@ namespace KinectRecorder.ViewModel
 
                     colorData = KinectManager.Instance.ToByteBuffer(frame);
                     observableColorData.OnNext(colorData);
-
-                    //if (bTestGPU)
-                    //{
-                    //    var bytes = objectFilter.FilterGPU(colorData, depthData, depthSpaceData, NearThreshold, FarThreshold, HaloSize);
-                    //    FilteredVideoFrame = bytes.ToBgr32BitMap();
-                    //}
-                    //else
-                    //{
-                    //    if (FilterEnabled)
-                    //    {
-                    //        var bytes = await objectFilter.FilterCPUAsync(colorData, depthData, depthSpaceData, NearThreshold, FarThreshold, HaloSize);
-                    //        FilteredVideoFrame = bytes.ToBgr32BitMap();
-                    //    }
-                    //    else if (VisualizeThresholds)
-                    //    {
-                    //        var bytes = await Task.Run(() => Threshold(colorData));
-                    //        FilteredVideoFrame = bytes.ToBgr32BitMap();
-                    //    }
-                    //    else
-                    //    {
-                    //        FilteredVideoFrame = KinectManager.Instance.ToBitmap(frame);
-                    //    }
-                    //}
                 }
             }
             // --
@@ -677,8 +652,6 @@ namespace KinectRecorder.ViewModel
                 AudioFrame = audioBuffer;
             }
             // --
-
-            Debug.WriteLine(sw2.ElapsedMilliseconds);
         }
 
         private unsafe byte[] Threshold(byte[] frame)

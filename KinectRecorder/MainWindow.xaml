@@ -97,6 +97,10 @@
                               Content="Filter enabled"
                               IsEnabled="{Binding DataContext.IsRunning, ElementName=FilterKinectControl}" />
 
+                    <CheckBox IsChecked="{Binding DataContext.UseGPUFiltering, ElementName=FilterKinectControl}"
+                              Content="Use GPU acceleration"
+                              IsEnabled="{Binding DataContext.IsRunning, ElementName=FilterKinectControl}" />
+                    
                     <CheckBox IsChecked="{Binding DataContext.AutomaticThresholds, ElementName=FilterKinectControl}"
                               Content="Automatic threshold"
                               IsEnabled="{Binding DataContext.IsRunning, ElementName=FilterKinectControl}" />
@@ -120,11 +124,6 @@
                             Margin="4pt"
                             FontSize="12pt"
                             Command="{Binding DataContext.ResetFilterCommand, ElementName = FilterKinectControl}" />
-
-                    <Button Content="Test GPU Filter"
-                            Margin="4pt"
-                            FontSize="12pt"
-                            Command="{Binding DataContext.TestGPUFilterCommand, ElementName = FilterKinectControl}" />
 
                 </StackPanel>
             </GroupBox>
