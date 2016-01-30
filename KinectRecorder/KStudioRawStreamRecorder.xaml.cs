@@ -143,13 +143,21 @@ namespace KinectRecorder
         {
             if (btn_recording.IsChecked)
             {
-                var sfd = new SaveFileDialog();
-                sfd.Filter = "Kinect Eventstream|*.xef|All files|*.*";
-                sfd.Title = "Save the recording";
-
-                if (sfd.ShowDialog() == true)
+                if (MessageBox.Show("Recording using the Kinect Studio API generates HUGE files (~140 MB for 1 second). Are you sure, you want to proceed?",
+                    "Confirmation", MessageBoxButton.YesNo) == MessageBoxResult.Yes)
                 {
-                    KinectManager.Instance.StartRecording(sfd.FileName);
+                    var sfd = new SaveFileDialog();
+                    sfd.Filter = "Kinect Eventstream|*.xef|All files|*.*";
+                    sfd.Title = "Save the recording";
+
+                    if (sfd.ShowDialog() == true)
+                    {
+                        KinectManager.Instance.StartRecording(sfd.FileName);
+                    }
+                }
+                else
+                {
+                    btn_recording.IsChecked = false;
                 }
             }
             else

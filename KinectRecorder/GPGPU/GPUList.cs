@@ -66,9 +66,9 @@ namespace KinectRecorder.GPGPU
         }
 
         /// <summary>
-        /// Gets the DeviceContext on which to perform all operations
+        /// Gets or sets the DeviceContext on which to perform all operations
         /// </summary>
-        public DeviceContext Context { get { return context; } }
+        public DeviceContext Context { get { return context; } set { context = value; } }
 
         /// <summary>
         /// Gets the underlying Buffer stored on the GPU

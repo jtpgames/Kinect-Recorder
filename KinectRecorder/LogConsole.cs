@@ -26,7 +26,7 @@ namespace KinectRecorder
             {
                 var sb = new StringBuilder();
                 sb.AppendFormat(format, arg);
-                logs.Add(sb.ToString());
+                System.Windows.Application.Current.Dispatcher.Invoke(() => logs.Add(sb.ToString()));
             }
             else
             {

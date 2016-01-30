@@ -33,7 +33,7 @@ namespace KinectRecorder.GPGPU
             return new ComputeShader(device, shaderBytecode);
         }
 
-        public static Buffer CreateConstantBuffer<T>(Device device, T[] data)
+        public static Buffer CreateConstantBuffer<T>(Device device, T[] data, DeviceContext deferredContext = null)
             where T : struct
         {
             var elementCount = data.Length;
@@ -51,13 +51,15 @@ namespace KinectRecorder.GPGPU
                 Usage = ResourceUsage.Dynamic,
             };
 
+            DeviceContext context = deferredContext != null ? deferredContext : device.ImmediateContext;
+
             Buffer inputBuffer = null;
             try
             {
                 inputBuffer = new Buffer(device, inputBufferDescription);
-                DataBox input = device.ImmediateContext.MapSubresource(inputBuffer, MapMode.WriteDiscard, MapFlags.None);
+                DataBox input = context.MapSubresource(inputBuffer, MapMode.WriteDiscard, MapFlags.None);
                 input.Data.WriteRange(data);
-                device.ImmediateContext.UnmapSubresource(inputBuffer, 0);
+                context.UnmapSubresource(inputBuffer, 0);
             }
             catch (Exception e)
             {

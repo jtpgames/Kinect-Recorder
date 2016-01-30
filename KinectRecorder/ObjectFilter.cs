@@ -176,6 +176,8 @@ namespace KinectRecorder
         public Task<byte[]> FilterGPUAsync(byte[] bgra, ushort[] depth, DepthSpacePoint[] depthSpaceData,
             int nearThresh, int farThresh, int haloSize)
         {
+            throw new NotImplementedException();
+
             return Task.Run(() => FilterGPU(bgra, depth, depthSpaceData, nearThresh, farThresh, haloSize));
         }
 

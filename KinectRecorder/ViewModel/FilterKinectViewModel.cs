@@ -160,13 +160,13 @@ namespace KinectRecorder.ViewModel
 
             set
             {
-                bVisualizeThresholds = value;
-                RaisePropertyChanged();
-
                 if (FilterEnabled)
                 {
                     FilterEnabled = false;
                 }
+
+                bVisualizeThresholds = value;
+                RaisePropertyChanged();
             }
         }
 
