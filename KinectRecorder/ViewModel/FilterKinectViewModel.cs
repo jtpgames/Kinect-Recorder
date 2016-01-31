@@ -448,8 +448,13 @@ namespace KinectRecorder.ViewModel
 
             FilterFramesSubscription = observableColorData
                 .Zip(observableDepthData, observableDepthSpaceData, (c, d, dsp) => Tuple.Create(c, d, dsp))
-                .Select((t) => FilterFrames(t.Item1, t.Item2, t.Item3))
-                .Subscribe(async (bytes) => FilteredVideoFrame = (await bytes).ToBgr32BitMap());
+                .Select(t => Observable.FromAsync(() => FilterFrames(t.Item1, t.Item2, t.Item3)))
+                .Concat()
+                .ObserveOnDispatcher()
+                .Subscribe((bytes) => 
+                {
+                    FilteredVideoFrame = bytes.ToBgr32BitMap();
+                });
         }
 
         private Task<ushort> AutomaticThreshold(ushort[] depthData)
@@ -517,32 +522,32 @@ namespace KinectRecorder.ViewModel
             });
         }
 
-        private Task<byte[]> FilterFrames(byte[] color, ushort[] depth, DepthSpacePoint[] depthSpace)
+        private async Task<byte[]> FilterFrames(byte[] color, ushort[] depth, DepthSpacePoint[] depthSpace)
         {
-            Task<byte[]> task;
+            byte[] result;
 
             if (FilterEnabled)
             {
                 if (UseGPUFiltering)
                 {
                     var bytes = objectFilter.FilterGPU(colorData, depthData, depthSpaceData, NearThreshold, FarThreshold, HaloSize);
-                    task = Task.FromResult(bytes);
+                    result = bytes;
                 }
                 else
                 {
-                    task = objectFilter.FilterCPUAsync(colorData, depthData, depthSpaceData, NearThreshold, FarThreshold, HaloSize);
+                    result = await objectFilter.FilterCPUAsync(colorData, depthData, depthSpaceData, NearThreshold, FarThreshold, HaloSize);
                 }
             }
             else if (VisualizeThresholds)
             {
-                task = Task.Run(() => Threshold(colorData));
+                result = await Task.Run(() => Threshold(colorData));
             }
             else
             {
-                task = Task.FromResult(color);
+                result = color;
             }
 
-            return task;
+            return result;
         }
 
         private void ActivateRecording()
