@@ -42,7 +42,7 @@ namespace KinectRecorder
         public event EventHandler<bool> KinectAvailabilityChanged;
         private void OnKinectAvailabilityChanged(object sender, IsAvailableChangedEventArgs e)
         {
-            KinectAvailabilityChanged?.Invoke(sender, e.IsAvailable);
+            OnKinectAvailabilityChanged(sender, e.IsAvailable);
         }
         private void OnKinectAvailabilityChanged(object sender, bool isAvailable)
         {

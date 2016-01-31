@@ -164,6 +164,8 @@ namespace KinectRecorder.ViewModel
 
         #region Visualization and Control Properties
 
+        private ReactiveCommand<byte[]> ExecuteFilterVideoFrame { get; set; }
+
         private ImageSource filteredVideoFrame;
         public ImageSource FilteredVideoFrame
         {
@@ -484,15 +486,33 @@ namespace KinectRecorder.ViewModel
                     NearThreshold = t - 500; // Nearthreshold is 50 cm towards the camera.
                 });
 
+            ExecuteFilterVideoFrame = ReactiveCommand.CreateAsyncTask(param =>
+            {
+                var input = param as Tuple<byte[], ushort[], DepthSpacePoint[]>;
+
+                return FilterFrames(input.Item1, input.Item2, input.Item3);
+            });
+
             FilterFramesSubscription = observableColorData
                 .Zip(observableDepthData, observableDepthSpaceData, (c, d, dsp) => Tuple.Create(c, d, dsp))
-                .Select(t => Observable.FromAsync(() => FilterFrames(t.Item1, t.Item2, t.Item3)))
-                .Concat()
-                .ObserveOnDispatcher()
-                .Subscribe((bytes) => 
-                {
-                    FilteredVideoFrame = bytes.ToBgr32BitMap();
-                });
+                .InvokeCommand(ExecuteFilterVideoFrame);
+
+            ExecuteFilterVideoFrame
+                .Select(bytes => bytes.ToBgr32BitMap())
+                .Subscribe(image => FilteredVideoFrame = image);
+
+            ExecuteFilterVideoFrame.ThrownExceptions
+                .Subscribe(x => Debug.WriteLine(x.Message));
+
+            //FilterFramesSubscription = observableColorData
+            //    .Zip(observableDepthData, observableDepthSpaceData, (c, d, dsp) => Tuple.Create(c, d, dsp))
+            //    .Select(t => Observable.FromAsync(() => FilterFrames(t.Item1, t.Item2, t.Item3)))
+            //    .Concat()
+            //    .ObserveOnDispatcher()
+            //    .Subscribe((bytes) => 
+            //    {
+            //        FilteredVideoFrame = bytes.ToBgr32BitMap();
+            //    });
         }
 
         private Task<ushort> AutomaticThreshold(ushort[] depthData)
