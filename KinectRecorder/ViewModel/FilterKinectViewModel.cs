@@ -19,10 +19,11 @@ using System.IO;
 using System.Threading;
 using System.Collections.ObjectModel;
 using System.Reactive.Subjects;
+using ReactiveUI;
 
 namespace KinectRecorder.ViewModel
 {
-    public class FilterKinectViewModel : ViewModelBase
+    public class FilterKinectViewModel : ReactiveObject, IDisposed
     {
         #region Filter Configurations
 
@@ -37,8 +38,8 @@ namespace KinectRecorder.ViewModel
             set
             {
                 haloSize = value;
-                RaisePropertyChanged();
-                RaisePropertyChanged("HaloText");
+                this.RaisePropertyChanged();
+                this.RaisePropertyChanged("HaloText");
             }
         }
 
@@ -59,8 +60,8 @@ namespace KinectRecorder.ViewModel
             set
             {
                 nearThreshold = value;
-                RaisePropertyChanged();
-                RaisePropertyChanged("NearThresholdText");
+                this.RaisePropertyChanged();
+                this.RaisePropertyChanged("NearThresholdText");
 
                 if (nearThreshold > FarThreshold)
                 {
@@ -82,8 +83,8 @@ namespace KinectRecorder.ViewModel
             set
             {
                 farThreshold = value;
-                RaisePropertyChanged();
-                RaisePropertyChanged("FarThresholdText");
+                this.RaisePropertyChanged();
+                this.RaisePropertyChanged("FarThresholdText");
             }
         }
 
@@ -100,7 +101,7 @@ namespace KinectRecorder.ViewModel
             set
             {
                 bFilterEnabled = value;
-                RaisePropertyChanged();
+                this.RaisePropertyChanged();
 
                 if (VisualizeThresholds)
                 {
@@ -120,7 +121,7 @@ namespace KinectRecorder.ViewModel
             set
             {
                 bAutomaticThresholds = value;
-                RaisePropertyChanged();
+                this.RaisePropertyChanged();
             }
         }
 
@@ -140,7 +141,7 @@ namespace KinectRecorder.ViewModel
                 }
 
                 bVisualizeThresholds = value;
-                RaisePropertyChanged();
+                this.RaisePropertyChanged();
             }
         }
 
@@ -155,7 +156,7 @@ namespace KinectRecorder.ViewModel
             set
             {
                 bUseGPUFiltering = value;
-                RaisePropertyChanged();
+                this.RaisePropertyChanged();
             }
         }
 
@@ -183,7 +184,7 @@ namespace KinectRecorder.ViewModel
                 }
 
                 filteredVideoFrame = value;
-                RaisePropertyChanged();
+                this.RaisePropertyChanged();
 
                 if (IsRecording)
                     observableFilteredImage.SafeOnNext(filteredVideoFrame);
@@ -203,7 +204,7 @@ namespace KinectRecorder.ViewModel
             set
             {
                 audioFrame = value;
-                RaisePropertyChanged();
+                this.RaisePropertyChanged();
 
                 if (IsRecording)
                     observableAudioFrame.SafeOnNext(audioFrame);
@@ -223,7 +224,7 @@ namespace KinectRecorder.ViewModel
             set
             {
                 isRunning = value;
-                RaisePropertyChanged();
+                this.RaisePropertyChanged();
 
                 observableIsRunning.SafeOnNext(isRunning);
             }
@@ -242,7 +243,7 @@ namespace KinectRecorder.ViewModel
             set
             {
                 isRecording = value;
-                RaisePropertyChanged();
+                this.RaisePropertyChanged();
             }
         }
 
@@ -265,7 +266,7 @@ namespace KinectRecorder.ViewModel
             set
             {
                 fps = value;
-                RaisePropertyChanged();
+                this.RaisePropertyChanged();
             }
         }
 
@@ -323,9 +324,11 @@ namespace KinectRecorder.ViewModel
             set
             {
                 colorAndDepthFramesPerSec = value;
-                RaisePropertyChanged();
+                this.RaisePropertyChanged();
             }
         }
+
+        public bool Disposed => disposedValue;
 
         private int totalColorAndDepthFrames = 0;
         private int totalVideoFrames = 0;
@@ -340,6 +343,14 @@ namespace KinectRecorder.ViewModel
             else
             {
                 Fps = 42;
+            }
+        }
+
+        private bool IsInDesignMode
+        {
+            get
+            {
+                return !(System.Windows.Application.Current is App);
             }
         }
 
@@ -660,7 +671,29 @@ namespace KinectRecorder.ViewModel
             LogConsole.WriteLine($"Total Videoframes: {totalVideoFrames}, Total Audioframes: {totalAudioFrames}, Total Frames: {totalColorAndDepthFrames}");
         }
 
-        public override void Cleanup()
+        #region IDisposable Support
+        private bool disposedValue = false; // To detect redundant calls
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!disposedValue)
+            {
+                if (disposing)
+                {
+                    Cleanup();
+                }
+
+                disposedValue = true;
+            }
+        }
+
+        public void Dispose()
+        {
+            Dispose(true);
+        }
+        #endregion
+
+        private void Cleanup()
         {
             StopProcessing();
 
@@ -669,8 +702,6 @@ namespace KinectRecorder.ViewModel
             objectFilter.SafeDispose();
 
             fpsTimer.Stop();
-
-            base.Cleanup();
         }
 
         private void ColorAndDepthSourceFrameArrived(object sender, MultiSourceFrameArrivedEventArgs e)
