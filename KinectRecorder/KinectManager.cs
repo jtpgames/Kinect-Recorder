@@ -39,10 +39,14 @@ namespace KinectRecorder
 
         #region Events
 
-        public event EventHandler<IsAvailableChangedEventArgs> KinectAvailabilityChanged;
+        public event EventHandler<bool> KinectAvailabilityChanged;
         private void OnKinectAvailabilityChanged(object sender, IsAvailableChangedEventArgs e)
         {
-            KinectAvailabilityChanged?.Invoke(sender, e);
+            KinectAvailabilityChanged?.Invoke(sender, e.IsAvailable);
+        }
+        private void OnKinectAvailabilityChanged(object sender, bool isAvailable)
+        {
+            KinectAvailabilityChanged?.Invoke(sender, isAvailable);
         }
 
         /// <summary>
@@ -240,6 +244,8 @@ namespace KinectRecorder
             playback = client.CreatePlayback(filePath, streamCollection);
             playback.StateChanged += KStudioClient_Playback_StateChanged;
             playback.Start();
+
+            OnKinectAvailabilityChanged(this, true);
 
             LogConsole.WriteLine("Recording opened and playing ...");
         }

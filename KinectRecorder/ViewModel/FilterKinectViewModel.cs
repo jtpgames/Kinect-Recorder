@@ -173,6 +173,15 @@ namespace KinectRecorder.ViewModel
 
             set
             {
+                ++totalFrames;
+
+                if (fpsTimer.ElapsedMilliseconds >= 1000)
+                {
+                    Fps = totalFrames;
+                    totalFrames = 0;
+                    fpsTimer.Restart();
+                }
+
                 filteredVideoFrame = value;
                 RaisePropertyChanged();
 
@@ -243,7 +252,7 @@ namespace KinectRecorder.ViewModel
 
         #region FPS Display
 
-        private Stopwatch sw;
+        private Stopwatch fpsTimer;
         private int totalFrames = 0;
         private int fps;
         public int Fps
@@ -301,9 +310,26 @@ namespace KinectRecorder.ViewModel
         private int videoSamples = 0;
         private int samplesWritten = 0;
 
-        private int numColorAndDepthFrame = 0;
-        private int numVideoFrames = 0;
-        private int numAudioFrames = 0;
+        private Stopwatch colorAndDepthFPSTimer;
+        private int colorAndDepthFrames = 0;
+        private int colorAndDepthFramesPerSec = 0;
+        public int ColorAndDepthFramesPerSec
+        {
+            get
+            {
+                return colorAndDepthFramesPerSec;
+            }
+
+            set
+            {
+                colorAndDepthFramesPerSec = value;
+                RaisePropertyChanged();
+            }
+        }
+
+        private int totalColorAndDepthFrames = 0;
+        private int totalVideoFrames = 0;
+        private int totalAudioFrames = 0;
 
         public FilterKinectViewModel()
         {
@@ -375,8 +401,8 @@ namespace KinectRecorder.ViewModel
                     else DeactivateRecording();
                 });
 
-            var observableIsAvailable = Observable.FromEventPattern<IsAvailableChangedEventArgs>(KinectManager.Instance, "KinectAvailabilityChanged")
-                .Select(e => e.EventArgs.IsAvailable);
+            var observableIsAvailable = Observable.FromEventPattern<bool>(KinectManager.Instance, "KinectAvailabilityChanged")
+                .Select(e => e.EventArgs);
 
             StartProcessingSubscription = observableIsAvailable
                 .CombineLatest(observableIsRunning, (available, running) => Tuple.Create(available, running))
@@ -390,7 +416,8 @@ namespace KinectRecorder.ViewModel
 
             // --
 
-            sw = Stopwatch.StartNew();
+            fpsTimer = Stopwatch.StartNew();
+            colorAndDepthFPSTimer = Stopwatch.StartNew();
         }
 
         private void OpenRecording()
@@ -630,7 +657,7 @@ namespace KinectRecorder.ViewModel
             ColorAndDepthSourceSubscription.SafeDispose();
             FilterFramesSubscription.SafeDispose();
 
-            LogConsole.WriteLine($"Videoframes: {numVideoFrames}, Audioframes: {numAudioFrames}, TotalFramesArrived: {numColorAndDepthFrame}");
+            LogConsole.WriteLine($"Total Videoframes: {totalVideoFrames}, Total Audioframes: {totalAudioFrames}, Total Frames: {totalColorAndDepthFrames}");
         }
 
         public override void Cleanup()
@@ -641,7 +668,7 @@ namespace KinectRecorder.ViewModel
 
             objectFilter.SafeDispose();
 
-            sw.Stop();
+            fpsTimer.Stop();
 
             base.Cleanup();
         }
@@ -651,14 +678,14 @@ namespace KinectRecorder.ViewModel
             // Get a reference to the multi-frame
             var reference = e.FrameReference.AcquireFrame();
 
-            ++totalFrames;
-            ++numColorAndDepthFrame;
+            ++totalColorAndDepthFrames;
+            ++colorAndDepthFrames;
 
-            if (sw.ElapsedMilliseconds >= 1000)
+            if (colorAndDepthFPSTimer.ElapsedMilliseconds >= 1000)
             {
-                Fps = totalFrames;
-                totalFrames = 0;
-                sw.Restart();
+                ColorAndDepthFramesPerSec = colorAndDepthFrames;
+                colorAndDepthFrames = 0;
+                colorAndDepthFPSTimer.Restart();
             }
 
             // -- Open depth frame --
@@ -683,7 +710,7 @@ namespace KinectRecorder.ViewModel
             {
                 if (frame != null)
                 {
-                    ++numVideoFrames;
+                    ++totalVideoFrames;
 
                     Debug.Assert(frame.FrameDescription.LengthInPixels == KinectManager.ColorSize);
 
@@ -697,18 +724,16 @@ namespace KinectRecorder.ViewModel
             // -- Acquire audio frame --
             using (var beamFrames = KinectManager.Instance.PollAudio())
             {
-                if (beamFrames == null)
+                if (beamFrames != null)
                 {
-                    return;
+                    ++totalAudioFrames;
+
+                    var subFrame = beamFrames[0].SubFrames[0];
+                    var audioBuffer = new byte[subFrame.FrameLengthInBytes];
+                    subFrame.CopyFrameDataToArray(audioBuffer);
+
+                    AudioFrame = audioBuffer;
                 }
-
-                ++numAudioFrames;
-
-                var subFrame = beamFrames[0].SubFrames[0];
-                var audioBuffer = new byte[subFrame.FrameLengthInBytes];
-                subFrame.CopyFrameDataToArray(audioBuffer);
-
-                AudioFrame = audioBuffer;
             }
             // --
         }
