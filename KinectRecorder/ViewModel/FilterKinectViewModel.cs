@@ -164,8 +164,6 @@ namespace KinectRecorder.ViewModel
 
         #region Visualization and Control Properties
 
-        private ReactiveCommand<byte[]> ExecuteFilterVideoFrame { get; set; }
-
         private ImageSource filteredVideoFrame;
         public ImageSource FilteredVideoFrame
         {
@@ -475,18 +473,31 @@ namespace KinectRecorder.ViewModel
             observableDepthData = new Subject<ushort[]>();
             observableDepthSpaceData = new Subject<DepthSpacePoint[]>();
 
+            // -- Set up Automatic thresholding --
+
+            var ExecuteAutomaticThreshold = ReactiveCommand.CreateAsyncTask(param =>
+            {
+                var input = param as ushort[];
+
+                return AutomaticThreshold(input);
+            });
+
             AutoThresholdSubscription = observableDepthData
                 .Sample(TimeSpan.FromSeconds(1))
                 .Where(_ => AutomaticThresholds)
-                .Select(data => AutomaticThreshold(data))
-                .Subscribe(async (thresh) => 
+                .InvokeCommand(ExecuteAutomaticThreshold);
+
+            ExecuteAutomaticThreshold
+                .Subscribe((t) =>
                 {
-                    var t = await thresh;
                     FarThreshold = t;
                     NearThreshold = t - 500; // Nearthreshold is 50 cm towards the camera.
                 });
 
-            ExecuteFilterVideoFrame = ReactiveCommand.CreateAsyncTask(param =>
+            // --
+            // -- Set up Filtering --
+
+            var ExecuteFilterVideoFrame = ReactiveCommand.CreateAsyncTask(param =>
             {
                 var input = param as Tuple<byte[], ushort[], DepthSpacePoint[]>;
 
@@ -504,15 +515,7 @@ namespace KinectRecorder.ViewModel
             ExecuteFilterVideoFrame.ThrownExceptions
                 .Subscribe(x => Debug.WriteLine(x.Message));
 
-            //FilterFramesSubscription = observableColorData
-            //    .Zip(observableDepthData, observableDepthSpaceData, (c, d, dsp) => Tuple.Create(c, d, dsp))
-            //    .Select(t => Observable.FromAsync(() => FilterFrames(t.Item1, t.Item2, t.Item3)))
-            //    .Concat()
-            //    .ObserveOnDispatcher()
-            //    .Subscribe((bytes) => 
-            //    {
-            //        FilteredVideoFrame = bytes.ToBgr32BitMap();
-            //    });
+            // --
         }
 
         private Task<ushort> AutomaticThreshold(ushort[] depthData)
@@ -834,7 +837,7 @@ namespace KinectRecorder.ViewModel
                 }
             }
 
-            Console.WriteLine($"Thresholding took {sw.ElapsedMilliseconds} ms");
+            Debug.WriteLine($"Thresholding took {sw.ElapsedMilliseconds} ms");
 
             return result;
         }
