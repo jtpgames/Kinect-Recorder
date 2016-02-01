@@ -348,21 +348,18 @@ namespace KinectRecorder.Multimedia
             return sample;
         }
 
-        public void AddVideoFrame(MemoryMappedTexture32bpp texture)
+        public void AddVideoFrame(MemoryMappedTexture32bpp frame)
         {
-            ++frameIndex;
+            Debug.Assert(frame != null && frame.SizeInBytes != 0);
 
             // Create the sample (includes image and timing information)
-            MF.Sample sample = CreateSampleFromFrame(texture);
+            var videoSample = CreateSampleFromFrame(frame);
             try
             {
-                //long frameDuration = 10 * 1000 * 1000 / framerate;
-                long frameDuration;
-                MF.MediaFactory.FrameRateToAverageTimePerFrame(framerate, 1, out frameDuration);
-                sample.SampleTime = frameDuration * frameIndex;
-                sample.SampleDuration = frameDuration;
+                var samples = new Dictionary<int, Sample>();
+                samples.Add(StreamIndex, videoSample);
 
-                sinkWriter.WriteSample(streamIndex, sample);
+                WriteSamples(samples);
             }
             catch (SharpDXException e)
             {
@@ -370,10 +367,8 @@ namespace KinectRecorder.Multimedia
             }
             finally
             {
-                sample.Dispose();
+                videoSample.Dispose();
             }
-
-            //mediaBuffer.Dispose();
         }
 
         public void AddVideoAndAudioFrame(MemoryMappedTexture32bpp frame, byte[] audioFrame)
