@@ -176,7 +176,7 @@ namespace KinectRecorder.ViewModel
             }
         }
 
-        private BlockingCollection<byte[]> videoFramesQueue = new BlockingCollection<byte[]>();
+        private BlockingCollection<byte[]> videoFramesQueue = null;
 
         private byte[] audioFrame;
         private byte[] AudioFrame
@@ -193,7 +193,7 @@ namespace KinectRecorder.ViewModel
             }
         }
 
-        private BlockingCollection<byte[]> audioFramesQueue = new BlockingCollection<byte[]>();
+        private BlockingCollection<byte[]> audioFramesQueue = null;
 
         private bool isRunning = false;
         public bool IsRunning
@@ -295,7 +295,6 @@ namespace KinectRecorder.ViewModel
         private IDisposable observableAudioSubscription;
 
         private IDisposable RecordingSubscription;
-        private IDisposable RecordingPendingVideoFramesSubscription;
 
         private int audioSamples = 0;
         private int videoSamples = 0;
@@ -395,7 +394,7 @@ namespace KinectRecorder.ViewModel
             var observableIsRecording = ObservableEx.ObservableProperty(() => IsRecording);
 
             observableIsRecording
-                .Throttle(TimeSpan.FromSeconds(1))
+                .Throttle(TimeSpan.FromMilliseconds(150))
                 .Subscribe(e =>
                 {
                     if (e) ActivateRecording();
@@ -466,45 +465,19 @@ namespace KinectRecorder.ViewModel
                 }
             });
 
-            //Task.Factory.StartNew(() =>
-            //{
-            //    foreach (var videoFrame in videoFramesQueue.GetConsumingEnumerable())
-            //    {
-            //        foreach (var audioFrame in audioFramesQueue.GetConsumingEnumerable())
-            //        {
-            //            WriteVideoAndAudioFrame(Tuple.Create(videoFrame, audioFrame)).Wait();
+            //var observableVideoFramesQueue = videoFramesQueue
+            //    .GetConsumingEnumerable()
+            //    .ToObservable(TaskPoolScheduler.Default);
 
-            //            if (isRecordingPendingFrames && (videoFramesQueue.Count == 0 || audioFramesQueue.Count == 0))
-            //            {
-            //                CleanUpAfterPendingFramesWereRecorded();
-            //            }
-            //        }
-            //    }
-
-            //}, TaskCreationOptions.LongRunning);
-
-            var observableVideoFramesQueue = videoFramesQueue
-                .GetConsumingEnumerable()
-                .ToObservable(TaskPoolScheduler.Default);
-
-            var observableAudioFramesQueue = audioFramesQueue
-                .GetConsumingEnumerable()
-                .ToObservable(TaskPoolScheduler.Default);
-
-            var observable = observableVideoFramesQueue
-                .Zip(observableAudioFramesQueue, (image, audio) => Tuple.Create(image, audio));
+            //var observableAudioFramesQueue = audioFramesQueue
+            //    .GetConsumingEnumerable()
+            //    .ToObservable(TaskPoolScheduler.Default);
 
             //var observable = observableVideoFramesQueue
-            //    .Zip(observableAudioFramesQueue, (image, audio) => Tuple.Create(image, audio))
-            //    .TakeWhile(_ => !(isRecordingPendingFrames && (videoFramesQueue.Count != 0 && audioFramesQueue.Count != 0)));
+            //    .Zip(observableAudioFramesQueue, (image, audio) => Tuple.Create(image, audio));
 
-            RecordingSubscription = observable
-                .InvokeCommand(ExecuteWriteVideoAndAudioFrame);
-
-            //RecordingPendingVideoFramesSubscription = observableVideoFramesQueue
-            //    .SkipWhile(_ => !(isRecordingPendingFrames && (videoFramesQueue.Count != 0 && audioFramesQueue.Count != 0)))
-            //    .Select(image => Tuple.Create<byte[], byte[]>(image, null))
-            //    .InvokeCommand(ExecuteFilterVideoFrame);
+            //RecordingSubscription = observable
+            //    .InvokeCommand(ExecuteWriteVideoAndAudioFrame);
         }
 
         private void OpenRecording()
@@ -675,9 +648,36 @@ namespace KinectRecorder.ViewModel
 
         private void ActivateRecording()
         {
+            videoFramesQueue = new BlockingCollection<byte[]>();
+            audioFramesQueue = new BlockingCollection<byte[]>();
+
+            Task.Factory.StartNew(async () =>
+            {
+                foreach (var videoFrame in videoFramesQueue.GetConsumingEnumerable())
+                {
+                    if (isRecordingPendingFrames && audioSamples == 0)
+                    {
+                        CleanUpAfterPendingFramesWereRecorded();
+                        return;
+                    }
+
+                    foreach (var audioframe in audioFramesQueue.GetConsumingEnumerable())
+                    {
+                        await WriteVideoAndAudioFrame(Tuple.Create(videoFrame, audioFrame));
+
+                        if (isRecordingPendingFrames && (videoSamples == 0 || audioSamples == 0))
+                        {
+                            CleanUpAfterPendingFramesWereRecorded();
+                            return;
+                        }
+
+                        break;
+                    }
+                }
+            }, TaskCreationOptions.LongRunning);
+
             var observablePixels = this.WhenAnyValue(x => x.FilteredVideoFrame)
-                .Where(img => img != null)
-                .Do(_ => Interlocked.Increment(ref videoSamples))
+                .Where(img => img != null && IsRecording)
                 .Select(img =>
                 {
                     var pixels = new byte[KinectManager.ColorWidth * KinectManager.ColorHeight * 4];
@@ -687,14 +687,23 @@ namespace KinectRecorder.ViewModel
                 });
 
             observablePixelsSubscription = observablePixels
-                .Subscribe(bytes => videoFramesQueue.Add(bytes));
+                .ObserveOn(TaskPoolScheduler.Default)
+                .Subscribe(bytes =>
+                {
+                    Interlocked.Increment(ref videoSamples);
+                    videoFramesQueue.Add(bytes);
+                });
 
             var observableAudio = this.WhenAnyValue(x => x.AudioFrame)
-                .Where(frame => frame != null)
-                .Do(_ => Interlocked.Increment(ref audioSamples));
+                .Where(frame => frame != null && IsRecording);
 
             observableAudioSubscription = observableAudio
-                .Subscribe(bytes => audioFramesQueue.Add(bytes));
+                .ObserveOn(TaskPoolScheduler.Default)
+                .Subscribe(bytes =>
+                {
+                    Interlocked.Increment(ref audioSamples);
+                    audioFramesQueue.Add(bytes);
+                });
         }
 
         private Task WriteVideoAndAudioFrame(Tuple<byte[], byte[]> input)
@@ -722,8 +731,8 @@ namespace KinectRecorder.ViewModel
         {
             isRecordingPendingFrames = true;
 
-            observablePixelsSubscription.SafeDispose();
-            observableAudioSubscription.SafeDispose();
+            videoFramesQueue.CompleteAdding();
+            audioFramesQueue.CompleteAdding();
 
             Debug.WriteLine($"Video: {videoSamples}, Audio: {audioSamples}, Written: {samplesWritten}");
             Debug.WriteLine($"Remaining:: Video: {videoFramesQueue.Count}, Audio: {audioFramesQueue.Count}");
