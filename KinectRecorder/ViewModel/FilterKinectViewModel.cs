@@ -380,6 +380,45 @@ namespace KinectRecorder.ViewModel
 
             // -- Initialize Relay commands --
 
+            InitializeRelayCommands();
+
+            // --
+            // -- Create observables to activate / deactivate recording and to start and stop processing  --
+
+            var observableIsRecording = ObservableEx.ObservableProperty(() => IsRecording);
+
+            observableIsRecording
+                .Throttle(TimeSpan.FromMilliseconds(150))
+                .Subscribe(e =>
+                {
+                    if (e) ActivateRecording();
+                    else DeactivateRecording();
+                });
+
+            var observableIsAvailable = Observable.FromEventPattern<bool>(KinectManager.Instance, "KinectAvailabilityChanged")
+                .Select(e => e.EventArgs);
+
+            StartProcessingSubscription = observableIsAvailable
+                .CombineLatest(observableIsRunning, (available, running) => Tuple.Create(available, running))
+                .Where(tuple => tuple.Item1 && tuple.Item2)
+                .Subscribe(_ => StartProcessing());
+
+            StopProcessingSubscription = observableIsAvailable
+                .CombineLatest(observableIsRunning, (available, running) => Tuple.Create(available, running))
+                .Where(tuple => !tuple.Item1 || !tuple.Item2)
+                .Subscribe(_ => StopProcessing());
+
+            InitializeReactiveCommands();
+            InitializeReactiveProperties();
+
+            // --
+
+            fpsTimer = Stopwatch.StartNew();
+            colorAndDepthFPSTimer = Stopwatch.StartNew();
+        }
+
+        private void InitializeRelayCommands()
+        {
             ToggleRecordingCommand = new RelayCommand<System.Windows.Controls.Button>(sender =>
             {
                 if (!IsRecording)
@@ -415,39 +454,8 @@ namespace KinectRecorder.ViewModel
 
             ResetFilterCommand = new RelayCommand(objectFilter.Reset);
 
-            // --
-            // -- Create observables to activate / deactivate recording and to start and stop processing  --
-
-            var observableIsRecording = ObservableEx.ObservableProperty(() => IsRecording);
-
-            observableIsRecording
-                .Throttle(TimeSpan.FromMilliseconds(150))
-                .Subscribe(e =>
-                {
-                    if (e) ActivateRecording();
-                    else DeactivateRecording();
-                });
-
-            var observableIsAvailable = Observable.FromEventPattern<bool>(KinectManager.Instance, "KinectAvailabilityChanged")
-                .Select(e => e.EventArgs);
-
-            StartProcessingSubscription = observableIsAvailable
-                .CombineLatest(observableIsRunning, (available, running) => Tuple.Create(available, running))
-                .Where(tuple => tuple.Item1 && tuple.Item2)
-                .Subscribe(_ => StartProcessing());
-
-            StopProcessingSubscription = observableIsAvailable
-                .CombineLatest(observableIsRunning, (available, running) => Tuple.Create(available, running))
-                .Where(tuple => !tuple.Item1 || !tuple.Item2)
-                .Subscribe(_ => StopProcessing());
-
-            InitializeReactiveCommands();
-            InitializeReactiveProperties();
-
-            // --
-
-            fpsTimer = Stopwatch.StartNew();
-            colorAndDepthFPSTimer = Stopwatch.StartNew();
+            PauseKinectCommand = new RelayCommand(() => IsKinectPaused = true);
+            ContinueKinectCommand = new RelayCommand(() => IsKinectPaused = false);
         }
 
         private void InitializeReactiveCommands()
