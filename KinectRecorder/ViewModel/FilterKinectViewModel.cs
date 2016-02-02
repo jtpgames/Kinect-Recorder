@@ -231,6 +231,29 @@ namespace KinectRecorder.ViewModel
 
         private bool isRecordingPendingFrames = false;
 
+        public bool IsKinectPaused
+        {
+            get
+            {
+                return KinectManager.Instance.Paused;
+            }
+
+            set
+            {
+                KinectManager.Instance.PauseKinect(value);
+                this.RaisePropertyChanged();
+                this.RaisePropertyChanged("IsKinectUnpaused");
+            }
+        }
+
+        public bool IsKinectUnpaused
+        {
+            get
+            {
+                return !KinectManager.Instance.Paused;
+            }
+        }
+
         #endregion
 
         #region FPS Display
@@ -261,6 +284,10 @@ namespace KinectRecorder.ViewModel
         public RelayCommand OpenRecordingCommand { get; private set; }
 
         public RelayCommand ResetFilterCommand { get; private set; }
+
+        public RelayCommand PauseKinectCommand { get; private set; }
+
+        public RelayCommand ContinueKinectCommand { get; private set; }
 
         #endregion
 
@@ -507,14 +534,28 @@ namespace KinectRecorder.ViewModel
 
         private void StartProcessing()
         {
-            if (KinectManager.Instance.Paused)
+            if (IsKinectPaused)
             {
-                KinectManager.Instance.PauseKinect(false);
+                IsKinectPaused = false;
             }
 
             var observableColorAndDepth = Observable.FromEventPattern<MultiSourceFrameArrivedEventArgs>(KinectManager.Instance, "ColorAndDepthSourceFrameArrived");
 
-            ColorAndDepthSourceSubscription = observableColorAndDepth.Subscribe(
+            ColorAndDepthSourceSubscription = observableColorAndDepth
+                .Do(_ =>
+                {
+                    ++totalColorAndDepthFrames;
+                    ++colorAndDepthFrames;
+
+                    if (colorAndDepthFPSTimer.ElapsedMilliseconds >= 1000)
+                    {
+                        ColorAndDepthFramesPerSec = colorAndDepthFrames;
+                        colorAndDepthFrames = 0;
+                        colorAndDepthFPSTimer.Restart();
+                    }
+                })
+                .ObserveOn(NewThreadScheduler.Default)
+                .Subscribe(
                 e => ColorAndDepthSourceFrameArrived(e.Sender, e.EventArgs)
             );
 
@@ -735,7 +776,7 @@ namespace KinectRecorder.ViewModel
             audioFramesQueue?.CompleteAdding();
 
             Debug.WriteLine($"Video: {videoSamples}, Audio: {audioSamples}, Written: {samplesWritten}");
-            Debug.WriteLine($"Remaining:: Video: {videoFramesQueue.Count}, Audio: {audioFramesQueue.Count}");
+            Debug.WriteLine($"Remaining:: Video: {videoFramesQueue?.Count}, Audio: {audioFramesQueue?.Count}");
         }
 
         private void CleanUpAfterPendingFramesWereRecorded()
@@ -751,9 +792,9 @@ namespace KinectRecorder.ViewModel
 
         private void StopProcessing()
         {
-            if (!KinectManager.Instance.Paused)
+            if (!IsKinectPaused)
             {
-                KinectManager.Instance.PauseKinect();
+                IsKinectPaused = true;
             }
 
             ColorAndDepthSourceSubscription.SafeDispose();
@@ -802,15 +843,15 @@ namespace KinectRecorder.ViewModel
             // Get a reference to the multi-frame
             var reference = e.FrameReference.AcquireFrame();
 
-            ++totalColorAndDepthFrames;
-            ++colorAndDepthFrames;
+            //++totalColorAndDepthFrames;
+            //++colorAndDepthFrames;
 
-            if (colorAndDepthFPSTimer.ElapsedMilliseconds >= 1000)
-            {
-                ColorAndDepthFramesPerSec = colorAndDepthFrames;
-                colorAndDepthFrames = 0;
-                colorAndDepthFPSTimer.Restart();
-            }
+            //if (colorAndDepthFPSTimer.ElapsedMilliseconds >= 1000)
+            //{
+            //    ColorAndDepthFramesPerSec = colorAndDepthFrames;
+            //    colorAndDepthFrames = 0;
+            //    colorAndDepthFPSTimer.Restart();
+            //}
 
             // -- Open depth frame --
             using (var frame = reference.DepthFrameReference.AcquireFrame())

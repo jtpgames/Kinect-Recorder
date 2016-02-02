@@ -39,6 +39,14 @@
                         CommandParameter="{Binding Mode=OneWay, RelativeSource={RelativeSource Self}}"
                         Content="Record"
                         ToolTip="Record all frames visible in the Filtered View." />
+                <Button Command="{Binding DataContext.PauseKinectCommand, ElementName=FilterKinectControl}"
+                        Content="Pause"
+                        ToolTip="Pause playback."
+                        IsEnabled="{Binding DataContext.IsKinectUnpaused, ElementName=FilterKinectControl}"/>
+                <Button Command="{Binding DataContext.ContinueKinectCommand, ElementName=FilterKinectControl}"
+                        Content="Continue"
+                        ToolTip="Continue playback."
+                        IsEnabled="{Binding DataContext.IsKinectPaused, ElementName=FilterKinectControl}" />
             </ToolBar>
         </ToolBarTray>
         <Grid>
