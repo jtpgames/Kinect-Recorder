@@ -731,8 +731,8 @@ namespace KinectRecorder.ViewModel
         {
             isRecordingPendingFrames = true;
 
-            videoFramesQueue.CompleteAdding();
-            audioFramesQueue.CompleteAdding();
+            videoFramesQueue?.CompleteAdding();
+            audioFramesQueue?.CompleteAdding();
 
             Debug.WriteLine($"Video: {videoSamples}, Audio: {audioSamples}, Written: {samplesWritten}");
             Debug.WriteLine($"Remaining:: Video: {videoFramesQueue.Count}, Audio: {audioFramesQueue.Count}");
@@ -794,6 +794,7 @@ namespace KinectRecorder.ViewModel
             objectFilter.SafeDispose();
 
             fpsTimer.Stop();
+            colorAndDepthFPSTimer.Stop();
         }
 
         private void ColorAndDepthSourceFrameArrived(object sender, MultiSourceFrameArrivedEventArgs e)

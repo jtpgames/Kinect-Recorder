@@ -251,7 +251,7 @@ namespace KinectRecorder.Multimedia
         public MediaFoundationVideoWriter(string filePath, Size2 videoPixelSize, Guid videoInputFormat, bool supportAudio = false)
         {
             bitrate = 1500000;
-            framerate = 25;
+            framerate = 15;
 
             if (!MFInitialized)
             {
