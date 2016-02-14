@@ -1,10 +1,13 @@
+# Important Note
+This project was created as part of a module I took at the [University of Applied Sciences Muenster](https://www.fh-muenster.de/fb2/ueber_uns/index.php?p=0). Therefore the project should only be considered as a proof of concept.
+
 # Kinect Recorder
 
 The Kinect Recorder is an application utilizing the Kinect V2 and Microsofts Kinect 2.0 SDK to record video and audio. It currently has the following features:
  - Record raw streams and save them in *.xef files. Uses the Kinect Studio API. Be aware that at the time of this writing the Kinect Studio API does not allow a compressed color stream (who know's why ... the enum is there). This leads to HUGE files.
  - Open and playback recorded *.xef files. Uses the Kinect Studio API.
  - Filtering of undesired objects in front of the camera. The method is inspired by Oliver Lau and his project whiteboard minus one, see [1].
- - Recording the filtered video stream alongside the audio stream into a single *.mp4 file.
+ - Recording the filtered video stream alongside the audio stream into a single *.mp4 file. (Experimental, see Todos)
 
 ### Version
 0.42
@@ -43,7 +46,6 @@ Apart from the software mentioned above you are going to need the following:
  * Optimize GPU acceleration.
     * Use a deferred context so the method can execute on another thread without blocking the UI-Thread.
 	* Optimize the copy operations using unsafe code.
-	* Cache the halo array.
 
 License
 ----
